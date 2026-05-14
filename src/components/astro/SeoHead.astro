@@ -1,0 +1,95 @@
+---
+interface Props {
+  title: string;
+  description: string;
+  ogImage?: string;
+}
+
+const { title, description, ogImage = '/og/default.png' } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://v9dev.in').toString();
+const og = new URL(ogImage, Astro.site ?? 'https://v9dev.in').toString();
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: 'JP Singh',
+  alternateName: 'v9dev',
+  jobTitle: 'Forward Deployed Engineer',
+  url: 'https://v9dev.in',
+  sameAs: [
+    'https://github.com/v9dev',
+    'https://www.linkedin.com/in/v9dev',
+    'https://x.com/v9devx',
+  ],
+  knowsAbout: [
+    'Cloud Architecture',
+    'Kubernetes',
+    'Docker',
+    'Terraform',
+    'CI/CD',
+    'Full-stack Development',
+    'React',
+    'Next.js',
+    'Node.js',
+    'TypeScript',
+    'Python',
+    'Self-hosted Infrastructure',
+  ],
+};
+---
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="generator" content={Astro.generator} />
+<link rel="canonical" href={canonical} />
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta name="author" content="JP Singh" />
+<meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#0a0a0f" />
+<meta name="color-scheme" content="dark" />
+
+<!-- OpenGraph -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content={canonical} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={og} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="v9dev.in" />
+<meta property="og:locale" content="en_US" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={og} />
+<meta name="twitter:creator" content="@v9devx" />
+
+<!-- Icons -->
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="mask-icon" href="/icons/mask-icon.svg" color="#b8ff3a" />
+<link rel="manifest" href="/manifest.webmanifest" />
+
+<!-- Font preloads -->
+<link
+  rel="preload"
+  href="/fonts/BricolageGrotesque-Variable.woff2"
+  as="font"
+  type="font/woff2"
+  crossorigin
+/>
+<link
+  rel="preload"
+  href="/fonts/Geist-Variable.woff2"
+  as="font"
+  type="font/woff2"
+  crossorigin
+/>
+
+<!-- Person schema for the knowledge panel -->
+<script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

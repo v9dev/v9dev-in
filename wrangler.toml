@@ -1,0 +1,24 @@
+name = "v9dev-in"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+# KV namespaces — IDs filled in after `wrangler kv namespace create`.
+# Run:
+#   pnpm exec wrangler kv namespace create CONTACT_MESSAGES
+#   pnpm exec wrangler kv namespace create RATE_LIMIT
+# Then paste the printed IDs below.
+
+[[kv_namespaces]]
+binding = "CONTACT_MESSAGES"
+id = "REPLACE_WITH_REAL_ID"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "REPLACE_WITH_REAL_ID"
+
+# Plain (non-secret) vars — set per environment in CF dashboard for production.
+[vars]
+PUBLIC_SITE_URL = "https://v9dev.in"
+CONTACT_FROM_EMAIL = "hello@v9dev.in"
+CONTACT_TO_EMAIL = "hello@v9dev.in"

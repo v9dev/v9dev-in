@@ -1,0 +1,33 @@
+---
+import '@styles/global.css';
+import SeoHead from '@components/astro/SeoHead.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const {
+  title = "JP Singh — Forward Deployed Engineer · Cloud + Full-stack",
+  description = "I design cloud platforms, build full-stack products, and keep them alive in production. From a single VPS to multi-region Kubernetes. Available for work.",
+  ogImage = '/og/default.png',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <SeoHead title={title} description={description} ogImage={ogImage} />
+  </head>
+  <body class="bg-canvas text-text antialiased">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:bg-lime focus:text-canvas focus:px-4 focus:py-2 focus:rounded"
+    >
+      Skip to content
+    </a>
+    <div class="grain" aria-hidden="true"></div>
+    <slot />
+  </body>
+</html>

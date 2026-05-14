@@ -1,0 +1,106 @@
+@import 'tailwindcss';
+
+/* ─── Design tokens ──────────────────────────────────────────────── */
+@theme {
+  /* base */
+  --color-canvas: #0a0a0f;
+  --color-elevated: #14141c;
+  --color-elevated-hi: #1c1c26;
+  --color-line: #2a2a36;
+  --color-text: #f5f5f0;
+  --color-muted: #8b8b95;
+
+  /* accents */
+  --color-lime: #b8ff3a;
+  --color-fuchsia: #ff3a8c;
+  --color-cyan: #3ae0ff;
+
+  /* glow tints (low-opacity siblings for shadows / gradients) */
+  --color-lime-glow: oklch(0.95 0.25 130 / 0.18);
+  --color-fuchsia-glow: oklch(0.7 0.3 0 / 0.18);
+  --color-cyan-glow: oklch(0.9 0.18 220 / 0.18);
+
+  /* typography */
+  --font-display: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* easings */
+  --ease-out-expo: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* spacings */
+  --section-pad: clamp(4rem, 10vw, 9rem);
+  --container-max: 84rem;
+}
+
+/* ─── Reset extras / base ────────────────────────────────────────── */
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'ss02', 'cv11';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    color-scheme: dark;
+  }
+  body {
+    overflow-x: hidden;
+  }
+  ::selection {
+    background: var(--color-lime);
+    color: var(--color-canvas);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  /* Hide native cursor only on fine pointers — touch keeps it. */
+  @media (pointer: fine) {
+    html.has-custom-cursor,
+    html.has-custom-cursor * {
+      cursor: none !important;
+    }
+  }
+  /* Honor reduced motion: kill all transforms/animations not strictly needed. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 200ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ─── Utilities & helpers ────────────────────────────────────────── */
+@layer utilities {
+  .container-page {
+    width: min(100% - 2.5rem, var(--container-max));
+    margin-inline: auto;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* Variable-font weight breathe */
+  @keyframes breathe-weight {
+    0%, 100% { font-variation-settings: 'wght' 600, 'wdth' 100; }
+    50%      { font-variation-settings: 'wght' 700, 'wdth' 105; }
+  }
+  .breathe {
+    animation: breathe-weight 6s var(--ease-in-out) infinite;
+  }
+}
