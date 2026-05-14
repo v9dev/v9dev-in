@@ -1,0 +1,81 @@
+---
+import ContactForm from './ContactForm.tsx';
+import { socialList, SITE } from '@lib/seo';
+---
+
+<section
+  id="contact"
+  data-index="6"
+  class="relative overflow-hidden py-[var(--section-pad)]"
+>
+  <div aria-hidden class="absolute inset-0 -z-10">
+    <div
+      class="absolute -bottom-32 -left-40 size-[40rem] rounded-full blur-3xl opacity-[0.08]"
+      style="background: radial-gradient(closest-side, var(--color-lime), transparent 70%)"
+    >
+    </div>
+  </div>
+
+  <div class="container-page grid lg:grid-cols-2 gap-12 lg:gap-20">
+    {/* Left column */}
+    <div>
+      <div class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-4 flex items-center gap-2">
+        <span class="inline-block w-8 h-px bg-lime"></span>
+        <span>06 · Contact</span>
+      </div>
+      <h2 class="font-display font-semibold text-balance leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)]">
+        Let's build something
+        <br />
+        <span class="text-lime">that lasts.</span>
+      </h2>
+      <p class="mt-6 text-muted text-lg leading-relaxed max-w-md">
+        Reply within 24h, anywhere on Earth. Tell me what you want to ship.
+      </p>
+
+      <div class="mt-10">
+        <p class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-3">
+          or reach me directly
+        </p>
+        <a
+          href={`mailto:${SITE.email}`}
+          class="font-mono text-base text-text hover:text-lime transition-colors"
+          data-cursor-label="mail"
+        >
+          {SITE.email}
+        </a>
+      </div>
+
+      <ul class="mt-10 flex flex-wrap gap-3">
+        {
+          socialList.map((s) => (
+            <li>
+              <a
+                href={s.href}
+                target={s.href.startsWith('http') ? '_blank' : undefined}
+                rel={s.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                class="inline-flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm font-mono uppercase tracking-widest text-text/80 hover:text-text hover:border-lime hover:text-lime transition-colors"
+                data-cursor-label={s.label.toLowerCase()}
+              >
+                {s.label} ↗
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {/* Right column — form */}
+    <div class="lg:pt-12">
+      <div class="rounded-3xl border border-line/80 bg-elevated/70 backdrop-blur-xl p-6 md:p-10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+        <ContactForm client:visible />
+      </div>
+    </div>
+  </div>
+
+  {/* Turnstile script — only when site key present */}
+  <script
+    is:inline
+    async
+    defer
+    src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+</section>

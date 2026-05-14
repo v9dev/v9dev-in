@@ -1,0 +1,24 @@
+---
+import WorkCarousel from './WorkCarousel.tsx';
+---
+
+<section id="work" data-index="5" class="relative overflow-clip">
+  <div class="container-page pt-[var(--section-pad)] pb-12">
+    <div class="flex items-end justify-between gap-6 flex-wrap">
+      <div>
+        <div class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-4 flex items-center gap-2">
+          <span class="inline-block w-8 h-px bg-fuchsia"></span>
+          <span>05 · Work</span>
+        </div>
+        <h2 class="font-display font-semibold text-balance leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)] max-w-3xl">
+          A few things <span class="text-fuchsia">I've shipped.</span>
+        </h2>
+      </div>
+      <p class="font-mono text-xs text-muted max-w-xs leading-relaxed">
+        Scroll the page → the carousel scrolls right. Click any card for details.
+      </p>
+    </div>
+  </div>
+
+  <WorkCarousel client:visible />
+</section>
