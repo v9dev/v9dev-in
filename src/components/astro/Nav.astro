@@ -1,0 +1,56 @@
+---
+import MagneticButton from '@components/ui/MagneticButton.tsx';
+
+const links = [
+  { label: 'Work', href: '#work' },
+  { label: 'Stack', href: '#stack' },
+  { label: 'Services', href: '#services' },
+  { label: 'Contact', href: '#contact' },
+];
+---
+
+<nav
+  aria-label="Primary"
+  class="fixed inset-x-0 top-4 z-40 flex justify-center px-4 pointer-events-none"
+>
+  <div
+    class="pointer-events-auto flex items-center gap-1 rounded-full border border-line/60 bg-elevated/60 px-2 py-2 backdrop-blur-xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.4)]"
+  >
+    <a
+      href="#hero"
+      class="px-3 py-1.5 text-sm font-medium tracking-tight rounded-full hover:bg-elevated-hi transition-colors flex items-center gap-2"
+      data-cursor-label="home"
+      aria-label="Back to top"
+    >
+      <span
+        class="inline-block size-2 rounded-full bg-lime shadow-[0_0_12px_2px_var(--color-lime)]"
+        aria-hidden="true"
+      ></span>
+      <span class="font-mono uppercase text-xs tracking-widest">v9dev</span>
+    </a>
+
+    <div class="h-5 w-px bg-line/60 mx-1" aria-hidden="true"></div>
+
+    {
+      links.map((l) => (
+        <a
+          href={l.href}
+          class="px-3 py-1.5 text-sm font-medium tracking-tight text-text/80 hover:text-text hover:bg-elevated-hi rounded-full transition-colors"
+        >
+          {l.label}
+        </a>
+      ))
+    }
+
+    <MagneticButton
+      client:visible
+      href="#contact"
+      strength={0.3}
+      radius={70}
+      data-cursor-label="hi 👋"
+      className="ml-1 rounded-full bg-lime px-4 py-1.5 text-sm font-semibold text-canvas hover:bg-lime/90"
+    >
+      Book a call →
+    </MagneticButton>
+  </div>
+</nav>

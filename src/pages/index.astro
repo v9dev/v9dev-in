@@ -1,13 +1,15 @@
 ---
 import Base from '@/layouts/Base.astro';
+import Nav from '@components/astro/Nav.astro';
+import Hero from '@components/sections/Hero/Hero.astro';
+import Manifesto from '@components/sections/Manifesto/Manifesto.astro';
 ---
 
 <Base>
+  <Nav />
   <main id="main">
-    <section class="min-h-screen grid place-items-center px-6">
-      <p class="font-mono text-sm text-muted tracking-wide uppercase">
-        Bootstrap OK · sections wiring up next
-      </p>
-    </section>
+    <Hero />
+    <Manifesto />
+    {/* TODO: SkillConstellation, Services, Work, Contact, Footer */}
   </main>
 </Base>

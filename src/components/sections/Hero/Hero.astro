@@ -1,0 +1,75 @@
+---
+import HeroKinetic from './HeroKinetic.tsx';
+import HeroSubtitle from './HeroSubtitle.tsx';
+import MagneticButton from '@components/ui/MagneticButton.tsx';
+
+const subtitle =
+  "Forward Deployed Engineer — I ship cloud infra that doesn't fall over, and the products that run on top.";
+---
+
+<section
+  id="hero"
+  data-index="1"
+  class="relative isolate min-h-[100svh] flex flex-col items-center justify-center overflow-hidden px-4 pt-28 pb-16"
+>
+  {/* Ambient gradient blobs */}
+  <div aria-hidden class="absolute inset-0 -z-10 pointer-events-none">
+    <div
+      class="absolute -top-40 -left-40 size-[55rem] rounded-full blur-3xl opacity-20"
+      style="background: radial-gradient(closest-side, var(--color-lime), transparent 70%)"
+    >
+    </div>
+    <div
+      class="absolute -bottom-32 -right-40 size-[50rem] rounded-full blur-3xl opacity-15"
+      style="background: radial-gradient(closest-side, var(--color-fuchsia), transparent 70%)"
+    >
+    </div>
+  </div>
+
+  {/* Top label */}
+  <div class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-8 flex items-center gap-3">
+    <span class="inline-block size-1.5 rounded-full bg-lime animate-pulse"></span>
+    Available for work · 2026
+  </div>
+
+  {/* Kinetic name */}
+  <HeroKinetic client:load text="JP SINGH" />
+
+  {/* Subtitle */}
+  <div class="mt-10">
+    <HeroSubtitle client:load text={subtitle} />
+  </div>
+
+  {/* CTAs */}
+  <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+    <MagneticButton
+      client:visible
+      href="#work"
+      strength={0.25}
+      radius={80}
+      className="rounded-full bg-text px-5 py-2.5 text-sm font-semibold text-canvas hover:bg-white"
+      data-cursor-label="see work"
+    >
+      See work ↓
+    </MagneticButton>
+    <MagneticButton
+      client:visible
+      href="#contact"
+      strength={0.25}
+      radius={80}
+      className="rounded-full border border-line/80 px-5 py-2.5 text-sm font-semibold text-text hover:border-lime hover:text-lime transition-colors"
+      data-cursor-label="say hi"
+    >
+      Book a call →
+    </MagneticButton>
+  </div>
+
+  {/* Scroll indicator */}
+  <div
+    aria-hidden
+    class="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-muted"
+  >
+    <span class="font-mono text-[10px] tracking-[0.3em] uppercase">scroll</span>
+    <span class="block h-8 w-px bg-gradient-to-b from-line to-transparent"></span>
+  </div>
+</section>

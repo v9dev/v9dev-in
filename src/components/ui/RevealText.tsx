@@ -1,9 +1,9 @@
 import { motion, useInView } from 'motion/react';
-import { useRef, type ElementType, type ReactNode } from 'react';
+import { useRef, type ElementType } from 'react';
 import { easings } from '@lib/motion';
 
 interface Props {
-  children: string;
+  text: string;
   /** HTML element to render. Defaults to <p>. */
   as?: ElementType;
   className?: string;
@@ -20,7 +20,7 @@ interface Props {
  * when the container enters the viewport. Single-fire by default.
  */
 export default function RevealText({
-  children,
+  text,
   as: Tag = 'p',
   className = '',
   stagger = 0.04,
@@ -29,14 +29,14 @@ export default function RevealText({
 }: Props) {
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.3 });
-  const words = children.split(/(\s+)/);
+  const words = text.split(/(\s+)/);
   const accentSet = new Set(accentWords.map((w) => w.toLowerCase()));
 
   return (
     <Tag
       ref={ref as never}
       className={className}
-      aria-label={children}
+      aria-label={text}
     >
       {words.map((word, i) => {
         if (/^\s+$/.test(word)) return word;
