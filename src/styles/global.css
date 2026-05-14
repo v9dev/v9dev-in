@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* ─── Fonts (self-hosted via Fontsource) ────────────────────────── */
 @import '@fontsource-variable/bricolage-grotesque';
