@@ -1,7 +1,7 @@
 export const SITE = {
   url: 'https://v9dev.in',
   name: 'v9dev.in',
-  title: 'JP Singh — Forward Deployed Engineer · Cloud + Full-stack',
+  title: 'JP Singh - Forward Deployed Engineer · Cloud + Full-stack',
   description:
     'I design cloud platforms, build full-stack products, and keep them alive in production. From a single VPS to multi-region Kubernetes. Available for work.',
   author: 'JP Singh',

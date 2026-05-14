@@ -9,7 +9,7 @@ interface Props {
   className?: string;
   /** Stagger between words. */
   stagger?: number;
-  /** Word-level highlights — words whose text exactly matches get accent. */
+  /** Word-level highlights - words whose text exactly matches get accent. */
   accentWords?: string[];
   /** Tailwind class for accent words. */
   accentClass?: string;

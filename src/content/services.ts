@@ -30,7 +30,7 @@ export const services: Service[] = [
     title: 'Self-hosted Platforms',
     tagline: 'Your own PaaS on your own hardware.',
     blurb:
-      'Coolify, Dokploy, Portainer, Homarr, Uptime Kuma, Grafana — turn a homelab or single VPS into a production cockpit.',
+      'Coolify, Dokploy, Portainer, Homarr, Uptime Kuma, Grafana - turn a homelab or single VPS into a production cockpit.',
     deliverables: [
       'Coolify / Dokploy deployment',
       'Reverse proxy + TLS automation',
@@ -45,7 +45,7 @@ export const services: Service[] = [
     title: 'Full-stack Builds',
     tagline: 'From idea to live URL.',
     blurb:
-      'Next.js, React, Node, Bun, Python — shipped end-to-end with auth, payments, observability, and a deploy pipeline you can actually trust.',
+      'Next.js, React, Node, Bun, Python - shipped end-to-end with auth, payments, observability, and a deploy pipeline you can actually trust.',
     deliverables: [
       'MVPs in 2–4 weeks',
       'TypeScript everywhere, tests where they earn it',

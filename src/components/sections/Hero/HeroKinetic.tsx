@@ -149,7 +149,7 @@ function KineticLetter({ char, index, cx, cy, wave }: LetterProps) {
     return (ddy as number) * (1 - dist / 260) * 0.22;
   });
 
-  // Font weight + width axes — heavier and wider near the cursor.
+  // Font weight + width axes - heavier and wider near the cursor.
   const wght = useTransform(distance, [0, 420], [820, 480], { clamp: true });
   const wdth = useTransform(distance, [0, 420], [120, 92], { clamp: true });
   const fvs = useTransform(

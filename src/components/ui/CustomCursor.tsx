@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useMotionValue, useSpring } from 'motion/react
 type Mode = 'default' | 'text' | 'interactive' | 'drag';
 
 /**
- * Small dot cursor with a label that sits offset to the bottom-right —
+ * Small dot cursor with a label that sits offset to the bottom-right -
  * never overlaps the element you're hovering. Auto-disabled on touch
  * devices and when prefers-reduced-motion is set.
  */

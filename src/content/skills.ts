@@ -15,7 +15,7 @@ export interface Skill {
   role: string;
   /** Which cluster the node lives in on the constellation */
   cluster: Cluster;
-  /** simple-icons slug — used to look up the SVG */
+  /** simple-icons slug - used to look up the SVG */
   icon: string;
   /** Brand hex for hover glow / tooltip accent */
   brand: string;

@@ -6,7 +6,7 @@ interface Props {
   service: Service;
   /** Index in the stack (0-based). */
   index: number;
-  /** Total cards — used to compute final scale of bottom card. */
+  /** Total cards - used to compute final scale of bottom card. */
   total: number;
 }
 

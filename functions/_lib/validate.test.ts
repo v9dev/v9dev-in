@@ -4,7 +4,7 @@ import { validateContactPayload } from './validate';
 const goodPayload = {
   name: 'JP Singh',
   email: 'jp@example.com',
-  message: 'Hey JP — quick chat about a Kubernetes platform we want shipped.',
+  message: 'Hey JP - quick chat about a Kubernetes platform we want shipped.',
   turnstileToken: 'cf-token-xyz',
 };
 

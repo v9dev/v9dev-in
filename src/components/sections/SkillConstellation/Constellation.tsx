@@ -4,17 +4,19 @@ import { buildConstellation, type ConstellationGeometry, type NodePosition } fro
 import { getIconPath } from '@lib/icons';
 
 const ROW_HEIGHT_DESKTOP = 180;
-const ROW_HEIGHT_MOBILE = 220;
+const ROW_HEIGHT_MOBILE = 150;
 const PAD_X_DESKTOP = 80;
-const PAD_X_MOBILE = 40;
-const PAD_Y = 80;
-const NODE_SIZE = 56;
+const PAD_X_MOBILE = 16;
+const PAD_Y = 70;
+const NODE_SIZE_DESKTOP = 56;
+const NODE_SIZE_MOBILE = 36;
 
 export default function Constellation() {
   const containerRef = useRef<HTMLDivElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
   const [geo, setGeo] = useState<ConstellationGeometry | null>(null);
   const [progress, setProgress] = useState(0);
+  const [nodeSize, setNodeSize] = useState(NODE_SIZE_DESKTOP);
 
   // ── Compute geometry from container width ────────────────────
   useLayoutEffect(() => {
@@ -24,6 +26,7 @@ export default function Constellation() {
       const rect = el.getBoundingClientRect();
       const width = Math.max(rect.width, 320);
       const mobile = width < 768;
+      setNodeSize(mobile ? NODE_SIZE_MOBILE : NODE_SIZE_DESKTOP);
       const g = buildConstellation({
         width,
         rowHeight: mobile ? ROW_HEIGHT_MOBILE : ROW_HEIGHT_DESKTOP,
@@ -164,6 +167,7 @@ export default function Constellation() {
             key={n.id}
             x={n.x}
             y={n.y}
+            size={nodeSize}
             active={active}
             name={n.skill.name}
             role={n.skill.role}
@@ -179,7 +183,7 @@ export default function Constellation() {
         <PathChip
           x={card.x}
           y={card.y}
-          name={card.skill?.name ?? '—'}
+          name={card.skill?.name ?? '-'}
           role={card.skill?.role ?? ''}
           brand={card.skill?.brand ?? '#B8FF3A'}
         />
@@ -247,6 +251,7 @@ function PathChip({ x, y, name, role, brand }: ChipProps) {
 interface NodeProps {
   x: number;
   y: number;
+  size: number;
   active: boolean;
   name: string;
   role: string;
@@ -255,17 +260,17 @@ interface NodeProps {
   iconPath: string | undefined;
 }
 
-function SkillNode({ x, y, active, name, role, years, brand, iconPath }: NodeProps) {
+function SkillNode({ x, y, size, active, name, role, years, brand, iconPath }: NodeProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <motion.div
       className="absolute"
       style={{
-        left: x - NODE_SIZE / 2,
-        top: y - NODE_SIZE / 2,
-        width: NODE_SIZE,
-        height: NODE_SIZE,
+        left: x - size / 2,
+        top: y - size / 2,
+        width: size,
+        height: size,
       }}
       initial={{ opacity: 0, scale: 0.4 }}
       animate={
@@ -286,13 +291,14 @@ function SkillNode({ x, y, active, name, role, years, brand, iconPath }: NodePro
           borderColor: hovered ? brand : undefined,
           transition: 'box-shadow 250ms ease, border-color 250ms ease',
         }}
-        aria-label={`${name} — ${role}`}
+        aria-label={`${name} - ${role}`}
       >
         {iconPath ? (
           <svg
             viewBox="0 0 24 24"
-            className="size-7"
             style={{
+              width: size * 0.55,
+              height: size * 0.55,
               fill: hovered ? brand : 'rgba(245,245,240,0.85)',
               filter: hovered ? `drop-shadow(0 0 8px ${brand}80)` : 'none',
               transition: 'fill 220ms ease, filter 220ms ease',
@@ -303,8 +309,9 @@ function SkillNode({ x, y, active, name, role, years, brand, iconPath }: NodePro
           </svg>
         ) : (
           <span
-            className="font-mono text-[10px] uppercase"
+            className="font-mono uppercase"
             style={{
+              fontSize: size * 0.22,
               color: hovered ? brand : undefined,
               transition: 'color 220ms ease',
             }}

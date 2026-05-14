@@ -2,7 +2,7 @@
  * Verifies a Cloudflare Turnstile token by calling siteverify.
  *
  * Cloudflare ships well-known test keys that always pass or fail
- * (https://developers.cloudflare.com/turnstile/troubleshooting/testing/) —
+ * (https://developers.cloudflare.com/turnstile/troubleshooting/testing/) -
  * we use one of those in .dev.vars for local dev.
  */
 

@@ -11,7 +11,7 @@ const lines = [
 
 /**
  * Cycles through a few "live" status strings underneath a pulsing dot.
- * Lightweight: no scheduler — just a setTimeout chain that pauses
+ * Lightweight: no scheduler - just a setTimeout chain that pauses
  * when the tab is hidden.
  */
 export default function HeroStatus() {

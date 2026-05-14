@@ -65,7 +65,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const ipKey = await hashIp(ip, env.IP_HASH_SALT);
   const rate = await checkRateLimit(ipKey, env.RATE_LIMIT, { max: 5, windowSeconds: 3600 });
   if (!rate.ok) {
-    return errorResponse('RateLimited', 429, 'Too many messages — try again later');
+    return errorResponse('RateLimited', 429, 'Too many messages - try again later');
   }
 
   // 5. Email
@@ -112,7 +112,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       { expirationTtl: 60 * 60 * 24 * 90 }, // 90 days
     );
   } catch {
-    // Swallow — Resend already accepted (or rejected) the send.
+    // Swallow - Resend already accepted (or rejected) the send.
   }
 
   if (!send.ok) {

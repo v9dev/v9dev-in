@@ -8,7 +8,7 @@
 
 import type { KVNamespace } from '@cloudflare/workers-types';
 
-/** Subset of KVNamespace we actually use — makes testing trivial. */
+/** Subset of KVNamespace we actually use - makes testing trivial. */
 export interface RateLimitStore {
   get(key: string): Promise<string | null>;
   put(
@@ -56,7 +56,7 @@ export async function checkRateLimit(
 }
 
 /**
- * Salted SHA-256 hash of an IP — never store raw IPs in KV.
+ * Salted SHA-256 hash of an IP - never store raw IPs in KV.
  * Uses Web Crypto (available in Workers + Node 20+).
  */
 export async function hashIp(ip: string, salt: string): Promise<string> {

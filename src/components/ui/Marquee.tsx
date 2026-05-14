@@ -14,7 +14,7 @@ interface Props {
 
 /**
  * Infinite horizontal marquee. Duplicates content twice so the loop is
- * seamless. Children are rendered as-is — wrap your items in flex/gap
+ * seamless. Children are rendered as-is - wrap your items in flex/gap
  * inside the children.
  */
 export default function Marquee({

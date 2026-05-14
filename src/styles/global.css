@@ -62,7 +62,7 @@
     outline-offset: 3px;
     border-radius: 2px;
   }
-  /* Hide native cursor only on fine pointers — touch keeps it. */
+  /* Hide native cursor only on fine pointers - touch keeps it. */
   @media (pointer: fine) {
     html.has-custom-cursor,
     html.has-custom-cursor * {
@@ -138,7 +138,7 @@
     color: var(--color-lime);
   }
 
-  /* ── Diagonal swipe — used for the nav pills and footer links ── */
+  /* ── Diagonal swipe - used for the nav pills and footer links ── */
   .link-swipe {
     position: relative;
     overflow: hidden;
@@ -161,7 +161,7 @@
     color: var(--color-canvas);
   }
 
-  /* ── Heading shimmer — subtle pass of light across letters ───── */
+  /* ── Heading shimmer - subtle pass of light across letters ───── */
   @keyframes heading-shimmer {
     0%    { background-position: -150% 0; }
     100%  { background-position: 250% 0; }
@@ -183,7 +183,7 @@
     animation: heading-shimmer 6.5s linear infinite;
   }
 
-  /* ── Section label dash — used for "01 · Manifesto" markers ─── */
+  /* ── Section label dash - used for "01 · Manifesto" markers ─── */
   .section-label {
     display: inline-flex;
     align-items: center;

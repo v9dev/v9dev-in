@@ -87,7 +87,7 @@ export function buildConstellation({
   // Build smooth path through the nodes in their natural sequence
   const d = buildSmoothPath(nodes.map((n) => [n.x, n.y]));
 
-  // Approximate path length via SVG only available in browser — return raw length
+  // Approximate path length via SVG only available in browser - return raw length
   // so consumer can replace with real measurement using getTotalLength().
   const pathLength = approxPathLength(nodes);
 

@@ -1,5 +1,5 @@
 /**
- * Minimal Resend client — POST /emails, that's it. We don't pull in the
+ * Minimal Resend client - POST /emails, that's it. We don't pull in the
  * official SDK because (a) we use a fraction of it and (b) it adds Node
  * polyfills to the Worker bundle.
  */

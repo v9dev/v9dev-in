@@ -2,7 +2,7 @@ import type { Variants, Transition } from 'motion/react';
 
 /**
  * Shared motion language used across every section.
- * Keep additions here — never hard-code easings/durations in components.
+ * Keep additions here - never hard-code easings/durations in components.
  */
 
 // ── Easings ─────────────────────────────────────────────────
