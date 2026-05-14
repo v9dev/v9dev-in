@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* ─── Fonts (self-hosted via Fontsource) ────────────────────────── */
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
 /* ─── Design tokens ──────────────────────────────────────────────── */
 @theme {
   /* base */
@@ -21,9 +26,9 @@
   --color-cyan-glow: oklch(0.9 0.18 220 / 0.18);
 
   /* typography */
-  --font-display: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
-  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+  --font-display: 'Bricolage Grotesque Variable', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Geist Variable', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', monospace;
 
   /* easings */
   --ease-out-expo: cubic-bezier(0.2, 0.8, 0.2, 1);
