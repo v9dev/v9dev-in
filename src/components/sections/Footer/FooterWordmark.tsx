@@ -59,7 +59,7 @@ export default function FooterWordmark({ text = 'V9DEV' }: { text?: string }) {
         aria-hidden
         className="font-display font-black leading-[0.85] tracking-tighter select-none mb-12"
         style={{
-          fontSize: 'clamp(5rem, 28vw, 24rem)',
+          fontSize: 'clamp(4rem, 22vw, 24rem)',
           WebkitTextStroke: '1.5px var(--color-text)',
           color: 'transparent',
         }}
@@ -75,7 +75,7 @@ export default function FooterWordmark({ text = 'V9DEV' }: { text?: string }) {
       onClick={() => setWave((w) => w + 1)}
       className="font-display font-black leading-[0.85] tracking-tighter select-none mb-12 flex justify-between cursor-pointer will-change-transform"
       style={{
-        fontSize: 'clamp(5rem, 28vw, 24rem)',
+        fontSize: 'clamp(4rem, 22vw, 24rem)',
         rotateX,
         rotateY,
         transformPerspective: 1400,

@@ -64,14 +64,14 @@ export default function HeroKinetic({ text }: Props) {
   }, [cursorX, cursorY, tiltX, tiltY]);
 
   const triggerWave = () => setWave((w) => w + 1);
-  const letters = text.split('');
+  const words = text.split(/\s+/);
 
   if (reduced) {
     return (
       <h1
         className="font-display font-bold leading-[0.85] tracking-tight text-center text-text"
         style={{
-          fontSize: 'clamp(4.5rem, 22vw, 18rem)',
+          fontSize: 'clamp(3.5rem, 18vw, 18rem)',
           fontVariationSettings: '"wght" 720, "wdth" 100',
         }}
       >
@@ -80,13 +80,16 @@ export default function HeroKinetic({ text }: Props) {
     );
   }
 
+  // Global letter index across words, so entry stagger is continuous.
+  let globalIdx = -1;
+
   return (
     <motion.h1
       ref={containerRef}
       onClick={triggerWave}
-      className="font-display font-bold leading-[0.85] tracking-tight text-center select-none flex flex-wrap justify-center cursor-pointer will-change-transform"
+      className="font-display font-bold leading-[0.85] tracking-tight text-center select-none flex flex-col sm:flex-row sm:flex-wrap justify-center items-center sm:gap-[0.3em] cursor-pointer will-change-transform"
       style={{
-        fontSize: 'clamp(4.5rem, 22vw, 18rem)',
+        fontSize: 'clamp(3.5rem, 18vw, 18rem)',
         rotateX,
         rotateY,
         transformPerspective: 1400,
@@ -95,9 +98,23 @@ export default function HeroKinetic({ text }: Props) {
       aria-label={text}
       data-cursor-label="poke"
     >
-      {letters.map((char, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: stable static input
-        <KineticLetter key={i} char={char} index={i} cx={cx} cy={cy} wave={wave} />
+      {words.map((word, wi) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: stable input
+        <span key={wi} className="inline-flex whitespace-nowrap">
+          {word.split('').map((char) => {
+            globalIdx += 1;
+            return (
+              <KineticLetter
+                key={globalIdx}
+                char={char}
+                index={globalIdx}
+                cx={cx}
+                cy={cy}
+                wave={wave}
+              />
+            );
+          })}
+        </span>
       ))}
     </motion.h1>
   );
