@@ -1,6 +1,9 @@
 ---
 import '@styles/global.css';
 import SeoHead from '@components/astro/SeoHead.astro';
+import SmoothScroll from '@components/ui/SmoothScroll.tsx';
+import CustomCursor from '@components/ui/CustomCursor.tsx';
+import ScrollProgress from '@components/ui/ScrollProgress.tsx';
 
 interface Props {
   title?: string;
@@ -28,6 +31,9 @@ const {
       Skip to content
     </a>
     <div class="grain" aria-hidden="true"></div>
+    <SmoothScroll client:load />
+    <CustomCursor client:idle />
+    <ScrollProgress client:idle />
     <slot />
   </body>
 </html>
