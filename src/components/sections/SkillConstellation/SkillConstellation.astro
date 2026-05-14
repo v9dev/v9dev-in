@@ -1,0 +1,40 @@
+---
+import Constellation from './Constellation.tsx';
+---
+
+<section
+  id="stack"
+  data-index="3"
+  class="relative py-[var(--section-pad)] overflow-hidden"
+>
+  <div aria-hidden class="absolute inset-0 -z-10">
+    <div
+      class="absolute top-0 left-1/2 -translate-x-1/2 size-[40rem] rounded-full blur-3xl opacity-[0.06]"
+      style="background: radial-gradient(closest-side, var(--color-lime), transparent 70%)"
+    >
+    </div>
+  </div>
+
+  <div class="container-page">
+    <div class="flex items-end justify-between gap-6 mb-12">
+      <div>
+        <div class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-4 flex items-center gap-2">
+          <span class="inline-block w-8 h-px bg-lime"></span>
+          <span>03 · Stack</span>
+        </div>
+        <h2 class="font-display font-semibold text-balance leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)] max-w-2xl">
+          The constellation
+          <br />
+          <span class="text-muted">I build with.</span>
+        </h2>
+      </div>
+      <p class="font-mono text-xs text-muted max-w-xs hidden md:block leading-relaxed">
+        Drawn live as you scroll. Hover any node for its role + years.
+      </p>
+    </div>
+  </div>
+
+  <div class="container-page mt-4">
+    <Constellation client:visible />
+  </div>
+</section>
