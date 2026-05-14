@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { buildConstellation, type ConstellationGeometry } from './path';
+import { AnimatePresence, motion } from 'motion/react';
+import { buildConstellation, type ConstellationGeometry, type NodePosition } from './path';
 import { getIconPath } from '@lib/icons';
 
 const ROW_HEIGHT_DESKTOP = 180;
@@ -75,6 +75,27 @@ export default function Constellation() {
       return geo?.pathLength ?? 0;
     }
   }, [geo]);
+
+  // ── Card-on-path position + active skill ─────────────────────
+  const card = useMemo(() => {
+    if (!geo || !pathRef.current || realLength === 0) return null;
+    const pathEl = pathRef.current;
+    try {
+      const len = realLength * progress;
+      const p = pathEl.getPointAtLength(len);
+      // tangent angle via a tiny lookahead
+      const ahead = pathEl.getPointAtLength(Math.min(realLength, len + 1));
+      const angle = (Math.atan2(ahead.y - p.y, ahead.x - p.x) * 180) / Math.PI;
+      // Find currently-active skill: largest pathFraction ≤ progress
+      let active: NodePosition | null = null;
+      for (const n of geo.nodes) {
+        if (n.pathFraction <= progress) active = n;
+      }
+      return { x: p.x, y: p.y, angle, skill: active?.skill ?? null };
+    } catch {
+      return null;
+    }
+  }, [geo, realLength, progress]);
 
   if (!geo) {
     return <div ref={containerRef} className="min-h-[60vh]" aria-hidden />;
@@ -152,7 +173,74 @@ export default function Constellation() {
           />
         );
       })}
+
+      {/* Card chip riding the path */}
+      {card && progress > 0.01 && progress < 0.995 && (
+        <PathChip
+          x={card.x}
+          y={card.y}
+          name={card.skill?.name ?? '—'}
+          role={card.skill?.role ?? ''}
+          brand={card.skill?.brand ?? '#B8FF3A'}
+        />
+      )}
     </div>
+  );
+}
+
+interface ChipProps {
+  x: number;
+  y: number;
+  name: string;
+  role: string;
+  brand: string;
+}
+
+function PathChip({ x, y, name, role, brand }: ChipProps) {
+  return (
+    <motion.div
+      className="absolute pointer-events-none z-20 will-change-transform"
+      style={{
+        left: x,
+        top: y,
+        transform: 'translate(-50%, -50%)',
+      }}
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={{ duration: 0.25 }}
+    >
+      {/* trailing aura */}
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 rounded-full blur-2xl"
+        style={{ background: `${brand}40`, transform: 'scale(2.2)' }}
+      />
+      {/* leading dot */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-2 rounded-full"
+        style={{ background: brand, boxShadow: `0 0 14px ${brand}` }}
+      />
+      {/* pill below the dot */}
+      <div className="absolute left-1/2 top-1/2 mt-5 -translate-x-1/2 whitespace-nowrap rounded-full bg-canvas/90 backdrop-blur-md border border-line/80 px-3 py-1 font-mono text-[10px] uppercase tracking-widest shadow-[0_6px_20px_rgba(0,0,0,0.5)]">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={name}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.22 }}
+            className="flex items-center gap-2"
+          >
+            <span style={{ color: brand }}>→</span>
+            <span className="text-text">{name}</span>
+            <span className="text-muted">·</span>
+            <span className="text-muted">{role}</span>
+          </motion.span>
+        </AnimatePresence>
+      </div>
+    </motion.div>
   );
 }
 

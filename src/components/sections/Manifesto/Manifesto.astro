@@ -1,5 +1,5 @@
 ---
-import RevealText from '@components/ui/RevealText.tsx';
+import ScrubReveal from '@components/ui/ScrubReveal.tsx';
 
 const paragraph =
   "I design cloud platforms, build full-stack products, and keep them running in production. From a single VPS to multi-region Kubernetes. From a quick Next.js MVP to a hardened, observed, automated stack. Boring infra. Beautiful interfaces. Real outcomes. If you can describe it, I can ship it.";
@@ -35,13 +35,12 @@ const accents = [
       <span>02 · Manifesto</span>
     </div>
 
-    <RevealText
+    <ScrubReveal
       client:visible
       text={paragraph}
       as="p"
-      stagger={0.06}
       accentWords={accents}
-      accentClass="text-fuchsia"
+      accentColor="#FF3A8C"
       className="font-display font-medium text-balance leading-[1.1] text-[clamp(2rem,5.5vw,5rem)] max-w-[28ch] mx-auto"
     />
   </div>
