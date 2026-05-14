@@ -1,5 +1,6 @@
 ---
 import { socialList, SITE } from '@lib/seo';
+import FooterWordmark from './FooterWordmark.tsx';
 const year = new Date().getFullYear();
 ---
 
@@ -22,14 +23,9 @@ const year = new Date().getFullYear();
       </a>
     </div>
 
-    {/* Massive V9DEV lockup */}
-    <div
-      aria-hidden
-      class="font-display font-black leading-[0.85] tracking-tighter select-none mb-12"
-      style="font-size: clamp(5rem, 28vw, 24rem); -webkit-text-stroke: 1.5px var(--color-text); color: transparent;"
-    >
-      V9DEV
-    </div>
+    {/* Massive V9DEV lockup — interactive */}
+    <FooterWordmark client:visible />
+
 
     <div class="grid md:grid-cols-3 gap-8 pt-8 border-t border-line/40">
       <div>

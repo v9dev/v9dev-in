@@ -41,7 +41,7 @@ export default function HeroSubtitle({ text, speed = 28 }: Props) {
   return (
     <p
       ref={ref}
-      className="font-mono text-sm md:text-base text-muted tracking-tight text-balance max-w-2xl mx-auto"
+      className="font-mono text-sm md:text-base text-muted tracking-tight text-balance text-center max-w-2xl mx-auto"
       aria-label={text}
     >
       <span aria-hidden>{shown}</span>

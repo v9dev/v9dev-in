@@ -195,20 +195,34 @@ function SkillNode({ x, y, active, name, role, years, brand, iconPath }: NodePro
         className="group relative size-full rounded-full bg-elevated border border-line flex items-center justify-center cursor-none focus:outline-none focus-visible:ring-2 focus-visible:ring-lime ring-offset-2 ring-offset-canvas"
         style={{
           boxShadow: hovered ? `0 0 32px -4px ${brand}` : '0 4px 12px rgba(0,0,0,0.3)',
-          transition: 'box-shadow 250ms ease',
+          borderColor: hovered ? brand : undefined,
+          transition: 'box-shadow 250ms ease, border-color 250ms ease',
         }}
         aria-label={`${name} — ${role}`}
       >
         {iconPath ? (
           <svg
             viewBox="0 0 24 24"
-            className="size-7 fill-text/85 group-hover:fill-text transition-colors"
+            className="size-7"
+            style={{
+              fill: hovered ? brand : 'rgba(245,245,240,0.85)',
+              filter: hovered ? `drop-shadow(0 0 8px ${brand}80)` : 'none',
+              transition: 'fill 220ms ease, filter 220ms ease',
+            }}
             aria-hidden
           >
             <path d={iconPath} />
           </svg>
         ) : (
-          <span className="font-mono text-[10px] uppercase">{name.slice(0, 3)}</span>
+          <span
+            className="font-mono text-[10px] uppercase"
+            style={{
+              color: hovered ? brand : undefined,
+              transition: 'color 220ms ease',
+            }}
+          >
+            {name.slice(0, 3)}
+          </span>
         )}
         {/* Tooltip */}
         <span
