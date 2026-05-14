@@ -1,6 +1,7 @@
 ---
 import HeroKinetic from './HeroKinetic.tsx';
 import HeroSubtitle from './HeroSubtitle.tsx';
+import HeroStatus from './HeroStatus.tsx';
 import MagneticButton from '@components/ui/MagneticButton.tsx';
 
 const subtitle =
@@ -26,11 +27,8 @@ const subtitle =
     </div>
   </div>
 
-  {/* Top label */}
-  <div class="font-mono text-[11px] tracking-[0.3em] uppercase text-muted mb-8 flex items-center gap-3">
-    <span class="inline-block size-1.5 rounded-full bg-lime animate-pulse"></span>
-    Available for work · 2026
-  </div>
+  {/* Live status */}
+  <HeroStatus client:load />
 
   {/* Kinetic name */}
   <HeroKinetic client:load text="JP SINGH" />
@@ -69,7 +67,30 @@ const subtitle =
     aria-hidden
     class="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-muted"
   >
-    <span class="font-mono text-[10px] tracking-[0.3em] uppercase">scroll</span>
-    <span class="block h-8 w-px bg-gradient-to-b from-line to-transparent"></span>
+    <span class="font-mono text-[10px] tracking-[0.3em] uppercase scroll-pulse">scroll</span>
+    <span class="relative block h-10 w-px overflow-hidden bg-line/30">
+      <span class="scroll-dot absolute left-1/2 -translate-x-1/2 -top-2 size-1 rounded-full bg-lime"></span>
+    </span>
   </div>
+
+  <style>
+    @keyframes scroll-dot {
+      0% { transform: translate(-50%, -200%); opacity: 0; }
+      30% { opacity: 1; }
+      100% { transform: translate(-50%, 320%); opacity: 0; }
+    }
+    .scroll-dot {
+      animation: scroll-dot 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    @keyframes scroll-pulse-op {
+      0%, 100% { opacity: 0.6; letter-spacing: 0.3em; }
+      50%      { opacity: 1;   letter-spacing: 0.4em; }
+    }
+    .scroll-pulse {
+      animation: scroll-pulse-op 3.6s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .scroll-dot, .scroll-pulse { animation: none; }
+    }
+  </style>
 </section>

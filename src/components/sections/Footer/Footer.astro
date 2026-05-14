@@ -47,11 +47,11 @@ const year = new Date().getFullYear();
       <nav aria-label="Footer navigation">
         <p class="font-mono text-xs text-muted uppercase tracking-widest mb-3">Navigate</p>
         <ul class="flex flex-col gap-1.5">
-          <li><a href="#hero" class="hover:text-lime">Top</a></li>
-          <li><a href="#stack" class="hover:text-lime">Stack</a></li>
-          <li><a href="#work" class="hover:text-lime">Work</a></li>
-          <li><a href="#services" class="hover:text-lime">Services</a></li>
-          <li><a href="#contact" class="hover:text-lime">Contact</a></li>
+          <li><a href="#hero" class="link-underline">Top</a></li>
+          <li><a href="#stack" class="link-underline">Stack</a></li>
+          <li><a href="#work" class="link-underline">Work</a></li>
+          <li><a href="#services" class="link-underline">Services</a></li>
+          <li><a href="#contact" class="link-underline">Contact</a></li>
         </ul>
       </nav>
 
@@ -65,7 +65,7 @@ const year = new Date().getFullYear();
                   href={s.href}
                   target={s.href.startsWith('http') ? '_blank' : undefined}
                   rel={s.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  class="hover:text-lime"
+                  class="link-underline"
                 >
                   {s.label} ↗
                 </a>
