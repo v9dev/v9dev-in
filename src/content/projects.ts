@@ -55,13 +55,13 @@ export const projects: Project[] = [
     tag: 'OSS',
   },
   {
-    slug: 'mautic-contrib',
+    slug: 'mautic-plugins',
     year: 2024,
-    title: 'Mautic - OSS Contributor',
+    title: 'Mautic - SES Plugin & WhatsApp',
     subtitle:
-      'Marketing-automation OSS. Worked on email pipeline, integrations, and a handful of UI fixes. Self-host shop, not SaaS.',
-    outcome: 'PRs landed · powering 1000s of self-hosted installs',
-    stack: ['python', 'mysql', 'nginx', 'docker'],
+      'Built an Amazon SES transport plugin for Mautic and currently working on a WhatsApp integration for the marketing-automation OSS.',
+    outcome: 'SES plugin shipped · WhatsApp integration in progress',
+    stack: ['php', 'mysql', 'nginx', 'docker'],
     links: { repo: 'https://github.com/mautic/mautic' },
     cover: '/work/mautic.svg',
     tag: 'OSS',
