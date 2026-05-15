@@ -385,31 +385,36 @@ function SkillNode({
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, mx: 0, my: 0 });
   const lit = active || hovered;
 
-  const handleMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!motionEnabled) return;
-    const { x: nx, y: ny } = normalizePointer(
-      e.clientX,
-      e.clientY,
-      e.currentTarget.getBoundingClientRect(),
-    );
-    setTilt({
-      rx: -ny * TILT_MAX_DEG,
-      ry: nx * TILT_MAX_DEG,
-      mx: nx * MAGNET_MAX_PX,
-      my: ny * MAGNET_MAX_PX,
-    });
-  };
+  const handleMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!motionEnabled) return;
+      const { x: nx, y: ny } = normalizePointer(
+        e.clientX,
+        e.clientY,
+        e.currentTarget.getBoundingClientRect(),
+      );
+      setTilt({
+        rx: -ny * TILT_MAX_DEG,
+        ry: nx * TILT_MAX_DEG,
+        mx: nx * MAGNET_MAX_PX,
+        my: ny * MAGNET_MAX_PX,
+      });
+    },
+    [motionEnabled],
+  );
 
-  const enter = () => {
+  const enter = useCallback(() => {
     setHovered(true);
     onHoverChange(id, true);
-  };
+  }, [id, onHoverChange]);
 
-  const leave = () => {
+  const leave = useCallback(() => {
     setHovered(false);
     setTilt({ rx: 0, ry: 0, mx: 0, my: 0 });
     onHoverChange(id, false);
-  };
+  }, [id, onHoverChange]);
+
+  const isAnimating = motionEnabled && (hovered || offsetX !== 0 || offsetY !== 0);
 
   const tx = offsetX + (motionEnabled ? tilt.mx : 0);
   const ty = offsetY + (motionEnabled ? tilt.my : 0);
@@ -435,7 +440,7 @@ function SkillNode({
           height: '100%',
           transform: `translate3d(${tx}px, ${ty}px, 0) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
           transition: 'transform 160ms ease-out',
-          willChange: 'transform',
+          willChange: isAnimating ? 'transform' : 'auto',
         }}
       >
         <motion.div
