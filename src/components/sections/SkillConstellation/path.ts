@@ -1,4 +1,4 @@
-import { skills, type Cluster, type Skill } from '@content/skills';
+import { type Cluster, type Skill, skills } from '@content/skills';
 
 export interface NodePosition {
   id: string;
@@ -41,6 +41,19 @@ interface BuildOpts {
   padY: number;
 }
 
+/** Clusters with more icons than this wrap onto additional stacked lines. */
+const WRAP_THRESHOLD = 7;
+
+/** Splits a group into `lines` chunks as evenly as possible, order preserved. */
+function chunkEvenly<T>(items: T[], lines: number): T[][] {
+  const out: T[][] = [];
+  const per = Math.ceil(items.length / lines);
+  for (let i = 0; i < items.length; i += per) {
+    out.push(items.slice(i, i + per));
+  }
+  return out;
+}
+
 /**
  * Lays each cluster on a horizontal row, alternating zig-zag direction
  * between rows so the connecting path snakes elegantly down the page.
@@ -54,34 +67,57 @@ export function buildConstellation({
   padY,
 }: BuildOpts): ConstellationGeometry {
   const nodes: NodePosition[] = [];
-  const rowYs: number[] = [];
   const clusterRows: { cluster: Cluster; label: string; y: number }[] = [];
 
   // Group skills by cluster in fixed order
   const grouped = clusterOrder.map((c) => skills.filter((s) => s.cluster === c));
 
-  // Compute positions
+  // Vertical gap between wrapped sub-lines within a single cluster band.
+  // Matches the normal cluster row spacing so a wrapped line is spaced
+  // exactly like any other row and the path stays continuous.
+  const wrappedLineGap = rowHeight;
+  const innerWidth = width - padX * 2;
+
+  // Compute positions. Long clusters wrap onto stacked lines; `lineIdx`
+  // runs across every line (cluster lines included) so the connecting
+  // path keeps zig-zagging instead of doubling back on itself.
+  let cursorY = padY;
+  let lineIdx = 0;
+
   grouped.forEach((group, rowIdx) => {
-    const y = padY + rowIdx * rowHeight + rowHeight / 2;
-    rowYs.push(y);
-    clusterRows.push({ cluster: clusterOrder[rowIdx], label: clusterLabel[clusterOrder[rowIdx]], y });
+    const lineCount = group.length > WRAP_THRESHOLD ? Math.ceil(group.length / WRAP_THRESHOLD) : 1;
+    const lines = chunkEvenly(group, lineCount);
+    const rowTop = cursorY + rowHeight / 2;
 
-    const innerWidth = width - padX * 2;
-    const step = innerWidth / Math.max(group.length, 1);
-    const reverse = rowIdx % 2 === 1;
-
-    group.forEach((skill, i) => {
-      const baseX = padX + step * i + step / 2;
-      const x = reverse ? width - baseX : baseX;
-      nodes.push({
-        id: skill.id,
-        x,
-        y,
-        pathFraction: 0, // filled in after we measure length
-        cluster: skill.cluster,
-        skill,
-      });
+    // Cluster label anchors to the first line of the band.
+    clusterRows.push({
+      cluster: clusterOrder[rowIdx],
+      label: clusterLabel[clusterOrder[rowIdx]],
+      y: rowTop,
     });
+
+    lines.forEach((line, li) => {
+      const y = rowTop + li * wrappedLineGap;
+      const step = innerWidth / Math.max(line.length, 1);
+      const reverse = lineIdx % 2 === 1;
+
+      line.forEach((skill, i) => {
+        const baseX = padX + step * i + step / 2;
+        const x = reverse ? width - baseX : baseX;
+        nodes.push({
+          id: skill.id,
+          x,
+          y,
+          pathFraction: 0, // filled in after we measure length
+          cluster: skill.cluster,
+          skill,
+        });
+      });
+
+      lineIdx += 1;
+    });
+
+    cursorY += rowHeight + (lineCount - 1) * wrappedLineGap;
   });
 
   // Build smooth path through the nodes in their natural sequence
@@ -102,7 +138,7 @@ export function buildConstellation({
 
   return {
     width,
-    height: padY * 2 + clusterOrder.length * rowHeight,
+    height: cursorY + padY,
     d,
     nodes,
     clusterRows,

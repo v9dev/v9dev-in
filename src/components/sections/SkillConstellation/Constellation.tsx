@@ -45,22 +45,28 @@ export default function Constellation() {
   // ── Drive draw progress from section scroll ──────────────────
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || !geo || geo.nodes.length === 0) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) {
       setProgress(1);
       return;
     }
 
+    const firstY = geo.nodes[0].y;
+    const lastY = geo.nodes[geo.nodes.length - 1].y;
+
     let raf = 0;
     const tick = () => {
       const rect = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      // Section enters at bottom of viewport (rect.top = vh) → progress 0
-      // Section finishes when its bottom reaches top of viewport → progress 1
-      const start = vh * 0.85;
-      const end = -rect.height + vh * 0.15;
-      const raw = (start - rect.top) / (start - end);
+      // Anchor the draw to the node positions, not the section box, so a
+      // tall (wrapped) constellation still finishes while the last row is
+      // on screen instead of after it has scrolled away.
+      // progress 0 → first node enters at 85% of the viewport.
+      // progress 1 → last node reaches 45% of the viewport (clearly visible).
+      const startTop = vh * 0.85 - firstY;
+      const endTop = vh * 0.45 - lastY;
+      const raw = (startTop - rect.top) / (startTop - endTop);
       const clamped = Math.max(0, Math.min(1, raw));
       setProgress(clamped);
       raf = requestAnimationFrame(tick);
