@@ -57,8 +57,20 @@ export default function Constellation() {
   );
 
   const handleSectionPointerLeave = useCallback(() => {
+    if (pointerRaf.current) {
+      cancelAnimationFrame(pointerRaf.current);
+      pointerRaf.current = 0;
+    }
     setPointer({ x: 0, y: 0 });
   }, []);
+
+  // Cancel any in-flight pointer frame on unmount.
+  useEffect(
+    () => () => {
+      if (pointerRaf.current) cancelAnimationFrame(pointerRaf.current);
+    },
+    [],
+  );
 
   // ── Compute geometry from container width ────────────────────
   useLayoutEffect(() => {
