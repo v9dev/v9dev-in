@@ -9,6 +9,9 @@ restrained-but-expressive motion rule and `prefers-reduced-motion`.
 
 ## Goals
 
+- As the scroll-drawn line crosses each node, that tech "ignites" in
+  its own brand color (the color hover already uses), so the draw feels
+  like it is bringing the stack to life.
 - Hovering a node feels alive: the node leans toward the cursor in 3D
   and the constellation visibly reacts.
 - The whole star-map reads as a 3D space that responds to mouse
@@ -53,7 +56,26 @@ restrained-but-expressive motion rule and `prefers-reduced-motion`.
 - Hovered node identity is lifted to `Constellation` state so the
   overlay can read it; `SkillNode` reports hover up via a callback.
 
-### 3. Constellation parallax depth — `Constellation`
+### 3. Brand-color ignite on path crossing — `SkillNode`
+
+- Today a node only goes "active" (opacity/scale) when the drawn path
+  reaches its `pathFraction`; the icon stays the default neutral
+  `rgba(245,245,240,0.85)` until hovered.
+- New: when the path crosses a node (it becomes active), the icon
+  transitions to **its brand color** with a soft brand-tinted glow —
+  i.e. the line "ignites" each tech in its own color as it is drawn,
+  the same color treatment hover already uses.
+- Hover then deepens it (stronger glow + the 3D tilt/magnetic drift
+  from section 1); the active brand color is the resting state once the
+  line has passed.
+- Driven entirely by the existing `active` prop (no new geometry/state).
+  Color/glow intensity behind a single tunable constant so the 36-node
+  field does not read as too loud; eased transition (~220ms) so nodes
+  ignite smoothly rather than snapping.
+- Under `prefers-reduced-motion`: the brand color still applies (it is a
+  state, not motion); only the transition easing is shortened/instant.
+
+### 4. Constellation parallax depth — `Constellation`
 
 - Track mouse position relative to the section container (single
   `pointermove` listener on the container).
@@ -94,7 +116,8 @@ restrained-but-expressive motion rule and `prefers-reduced-motion`.
   - parallax mouse state + memoized depth map
   - lifted `hoveredId` state + path-highlight overlay `<path>`
   - `SkillNode`: `perspective` wrapper, 3D tilt + magnetic offset,
-    `onHoverChange` callback, depth-aware transform
+    `onHoverChange` callback, depth-aware transform, brand-color ignite
+    on `active`
 - `src/components/sections/SkillConstellation/path.ts`
   - No change expected (`pathFraction` already exposed). Touch only if
     the highlight needs a helper to map a fraction window to dash
@@ -103,8 +126,10 @@ restrained-but-expressive motion rule and `prefers-reduced-motion`.
 ## Testing / verification
 
 - Manual via `pnpm dev` (HMR is the review surface per project
-  convention): hover nodes (tilt + drift + path glow), move mouse
-  across section (parallax depth), verify spring-back on leave.
+  convention): scroll the section and confirm each icon ignites into
+  its brand color as the line crosses it; hover nodes (tilt + drift +
+  path glow on top of the brand color), move mouse across section
+  (parallax depth), verify spring-back on leave.
 - Verify `prefers-reduced-motion` (OS setting / devtools emulation)
   disables tilt + parallax, keeps scale/glow.
 - Verify no console errors, smooth 60fps (no layout thrash — transforms
