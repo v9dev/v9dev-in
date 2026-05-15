@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-import { buildConstellation, type ConstellationGeometry, type NodePosition } from './path';
 import { getIconPath } from '@lib/icons';
+import { AnimatePresence, motion } from 'motion/react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { depthFactor, highlightDash, normalizePointer } from './interaction';
+import { type ConstellationGeometry, type NodePosition, buildConstellation } from './path';
 
 const ROW_HEIGHT_DESKTOP = 180;
 const ROW_HEIGHT_MOBILE = 150;
@@ -10,6 +11,11 @@ const PAD_X_MOBILE = 16;
 const PAD_Y = 70;
 const NODE_SIZE_DESKTOP = 56;
 const NODE_SIZE_MOBILE = 36;
+const PARALLAX_MAX_PX = 14; // shift of the nearest depth layer
+const TILT_MAX_DEG = 12; // max 3D lean of a hovered node
+const MAGNET_MAX_PX = 8; // max drift of a hovered node toward the cursor
+const HIGHLIGHT_WINDOW_PX = 120; // path length lit around the hovered node
+const PATH_DEPTH = 0.66; // mid depth layer the path rides on
 
 export default function Constellation() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -17,6 +23,42 @@ export default function Constellation() {
   const [geo, setGeo] = useState<ConstellationGeometry | null>(null);
   const [progress, setProgress] = useState(0);
   const [nodeSize, setNodeSize] = useState(NODE_SIZE_DESKTOP);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pointer, setPointer] = useState({ x: 0, y: 0 });
+  const [motionEnabled, setMotionEnabled] = useState(true);
+  const pointerRaf = useRef(0);
+
+  // ── Respect prefers-reduced-motion for pointer-driven motion ──
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setMotionEnabled(!mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  const handleHoverChange = useCallback((id: string, hovered: boolean) => {
+    setHoveredId((cur) => (hovered ? id : cur === id ? null : cur));
+  }, []);
+
+  const handleSectionPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!motionEnabled) return;
+      const el = containerRef.current;
+      if (!el || pointerRaf.current) return;
+      const { clientX, clientY } = e;
+      const rect = el.getBoundingClientRect();
+      pointerRaf.current = requestAnimationFrame(() => {
+        pointerRaf.current = 0;
+        setPointer(normalizePointer(clientX, clientY, rect));
+      });
+    },
+    [motionEnabled],
+  );
+
+  const handleSectionPointerLeave = useCallback(() => {
+    setPointer({ x: 0, y: 0 });
+  }, []);
 
   // ── Compute geometry from container width ────────────────────
   useLayoutEffect(() => {
@@ -142,12 +184,7 @@ export default function Constellation() {
           </linearGradient>
         </defs>
         {/* Underlying faint track */}
-        <path
-          d={geo.d}
-          fill="none"
-          stroke="rgba(255,255,255,0.05)"
-          strokeWidth={1}
-        />
+        <path d={geo.d} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
         {/* Animated drawn path */}
         <path
           ref={pathRef}
@@ -279,11 +316,7 @@ function SkillNode({ x, y, size, active, name, role, years, brand, iconPath }: N
         height: size,
       }}
       initial={{ opacity: 0, scale: 0.4 }}
-      animate={
-        active
-          ? { opacity: 1, scale: hovered ? 1.12 : 1 }
-          : { opacity: 0, scale: 0.4 }
-      }
+      animate={active ? { opacity: 1, scale: hovered ? 1.12 : 1 } : { opacity: 0, scale: 0.4 }}
       transition={{ type: 'spring', stiffness: 380, damping: 22, mass: 0.6 }}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
