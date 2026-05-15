@@ -9,8 +9,8 @@ describe('depthFactor', () => {
     expect(depthFactor(3)).toBe(1);
   });
 
-  it('is deterministic for the same index', () => {
-    expect(depthFactor(7)).toBe(depthFactor(7));
+  it('wraps to the far layer past the last index', () => {
+    expect(depthFactor(7)).toBe(0.66);
   });
 });
 
