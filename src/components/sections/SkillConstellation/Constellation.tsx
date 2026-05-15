@@ -160,6 +160,17 @@ export default function Constellation() {
     }
   }, [geo, realLength, progress]);
 
+  // ── Path segment lit around the hovered node ─────────────────
+  const highlight = useMemo(() => {
+    if (!geo || !hoveredId || realLength <= 0) return null;
+    const hn = geo.nodes.find((n) => n.id === hoveredId);
+    if (!hn) return null;
+    return {
+      dash: highlightDash(realLength, hn.pathFraction, HIGHLIGHT_WINDOW_PX),
+      brand: hn.skill.brand,
+    };
+  }, [geo, hoveredId, realLength]);
+
   if (!geo) {
     return <div ref={containerRef} className="min-h-[60vh]" aria-hidden />;
   }
@@ -167,7 +178,13 @@ export default function Constellation() {
   const drawn = realLength * progress;
 
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: geo.height }}>
+    <div
+      ref={containerRef}
+      className="relative w-full"
+      style={{ height: geo.height }}
+      onPointerMove={handleSectionPointerMove}
+      onPointerLeave={handleSectionPointerLeave}
+    >
       {/* Cluster row labels (left edge) */}
       {geo.clusterRows.map((row) => (
         <div
@@ -186,6 +203,10 @@ export default function Constellation() {
         width={geo.width}
         height={geo.height}
         className="absolute inset-0 pointer-events-none"
+        style={{
+          transform: `translate3d(${-pointer.x * PATH_DEPTH * PARALLAX_MAX_PX}px, ${-pointer.y * PATH_DEPTH * PARALLAX_MAX_PX}px, 0)`,
+          transition: 'transform 160ms ease-out',
+        }}
         aria-hidden
       >
         <defs>
@@ -211,15 +232,33 @@ export default function Constellation() {
             filter: 'drop-shadow(0 0 10px rgba(184,255,58,0.25))',
           }}
         />
+        {/* Brand-tinted segment around the hovered node */}
+        {highlight && (
+          <path
+            d={geo.d}
+            fill="none"
+            stroke={highlight.brand}
+            strokeWidth={3}
+            strokeLinecap="round"
+            style={{
+              strokeDasharray: highlight.dash.dasharray,
+              strokeDashoffset: highlight.dash.dashoffset,
+              filter: `drop-shadow(0 0 6px ${highlight.brand})`,
+              opacity: 0.9,
+            }}
+          />
+        )}
       </svg>
 
       {/* Nodes */}
-      {geo.nodes.map((n) => {
+      {geo.nodes.map((n, idx) => {
         const active = progress >= n.pathFraction;
         const iconPath = getIconPath(n.id);
+        const factor = motionEnabled ? depthFactor(idx) : 0;
         return (
           <SkillNode
             key={n.id}
+            id={n.id}
             x={n.x}
             y={n.y}
             size={nodeSize}
@@ -229,6 +268,10 @@ export default function Constellation() {
             years={n.skill.years}
             brand={n.skill.brand}
             iconPath={iconPath}
+            offsetX={-pointer.x * factor * PARALLAX_MAX_PX}
+            offsetY={-pointer.y * factor * PARALLAX_MAX_PX}
+            motionEnabled={motionEnabled}
+            onHoverChange={handleHoverChange}
           />
         );
       })}
@@ -304,6 +347,7 @@ function PathChip({ x, y, name, role, brand }: ChipProps) {
 }
 
 interface NodeProps {
+  id: string;
   x: number;
   y: number;
   size: number;
@@ -313,75 +357,146 @@ interface NodeProps {
   years?: number;
   brand: string;
   iconPath: string | undefined;
+  /** Parallax translate (px) from section pointer + this node's depth. */
+  offsetX: number;
+  offsetY: number;
+  /** When false (reduced motion), tilt + magnet + parallax are disabled. */
+  motionEnabled: boolean;
+  onHoverChange: (id: string, hovered: boolean) => void;
 }
 
-function SkillNode({ x, y, size, active, name, role, years, brand, iconPath }: NodeProps) {
+function SkillNode({
+  id,
+  x,
+  y,
+  size,
+  active,
+  name,
+  role,
+  years,
+  brand,
+  iconPath,
+  offsetX,
+  offsetY,
+  motionEnabled,
+  onHoverChange,
+}: NodeProps) {
   const [hovered, setHovered] = useState(false);
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0, mx: 0, my: 0 });
+  const lit = active || hovered;
+
+  const handleMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!motionEnabled) return;
+    const { x: nx, y: ny } = normalizePointer(
+      e.clientX,
+      e.clientY,
+      e.currentTarget.getBoundingClientRect(),
+    );
+    setTilt({
+      rx: -ny * TILT_MAX_DEG,
+      ry: nx * TILT_MAX_DEG,
+      mx: nx * MAGNET_MAX_PX,
+      my: ny * MAGNET_MAX_PX,
+    });
+  };
+
+  const enter = () => {
+    setHovered(true);
+    onHoverChange(id, true);
+  };
+
+  const leave = () => {
+    setHovered(false);
+    setTilt({ rx: 0, ry: 0, mx: 0, my: 0 });
+    onHoverChange(id, false);
+  };
+
+  const tx = offsetX + (motionEnabled ? tilt.mx : 0);
+  const ty = offsetY + (motionEnabled ? tilt.my : 0);
 
   return (
-    <motion.div
+    <div
       className="absolute"
       style={{
         left: x - size / 2,
         top: y - size / 2,
         width: size,
         height: size,
+        perspective: 600,
       }}
-      initial={{ opacity: 0, scale: 0.4 }}
-      animate={active ? { opacity: 1, scale: hovered ? 1.12 : 1 } : { opacity: 0, scale: 0.4 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 22, mass: 0.6 }}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
+      onPointerEnter={enter}
+      onPointerLeave={leave}
+      onPointerMove={handleMove}
       data-cursor-label={name.toLowerCase()}
     >
-      <button
-        type="button"
-        className="group relative size-full rounded-full bg-elevated border border-line flex items-center justify-center cursor-none focus:outline-none focus-visible:ring-2 focus-visible:ring-lime ring-offset-2 ring-offset-canvas"
+      <div
         style={{
-          boxShadow: hovered ? `0 0 32px -4px ${brand}` : '0 4px 12px rgba(0,0,0,0.3)',
-          borderColor: hovered ? brand : undefined,
-          transition: 'box-shadow 250ms ease, border-color 250ms ease',
+          width: '100%',
+          height: '100%',
+          transform: `translate3d(${tx}px, ${ty}px, 0) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+          transition: 'transform 160ms ease-out',
+          willChange: 'transform',
         }}
-        aria-label={`${name} - ${role}`}
       >
-        {iconPath ? (
-          <svg
-            viewBox="0 0 24 24"
-            style={{
-              width: size * 0.55,
-              height: size * 0.55,
-              fill: hovered ? brand : 'rgba(245,245,240,0.85)',
-              filter: hovered ? `drop-shadow(0 0 8px ${brand}80)` : 'none',
-              transition: 'fill 220ms ease, filter 220ms ease',
-            }}
-            aria-hidden
-          >
-            <path d={iconPath} />
-          </svg>
-        ) : (
-          <span
-            className="font-mono uppercase"
-            style={{
-              fontSize: size * 0.22,
-              color: hovered ? brand : undefined,
-              transition: 'color 220ms ease',
-            }}
-          >
-            {name.slice(0, 3)}
-          </span>
-        )}
-        {/* Tooltip */}
-        <span
-          className="pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-12 whitespace-nowrap rounded-md border border-line bg-elevated px-2 py-1 text-[11px] font-mono text-text opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.5)' }}
+        <motion.div
+          className="size-full"
+          initial={{ opacity: 0, scale: 0.4 }}
+          animate={active ? { opacity: 1, scale: hovered ? 1.12 : 1 } : { opacity: 0, scale: 0.4 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 22, mass: 0.6 }}
         >
-          <span style={{ color: brand }}>●</span> {name}
-          <span className="text-muted ml-2">
-            {role}
-            {years ? ` · ${years}y` : ''}
-          </span>
-        </span>
-      </button>
-    </motion.div>
+          <button
+            type="button"
+            className="group relative size-full rounded-full bg-elevated border border-line flex items-center justify-center cursor-none focus:outline-none focus-visible:ring-2 focus-visible:ring-lime ring-offset-2 ring-offset-canvas"
+            style={{
+              boxShadow: hovered ? `0 0 32px -4px ${brand}` : '0 4px 12px rgba(0,0,0,0.3)',
+              borderColor: hovered ? brand : undefined,
+              transition: 'box-shadow 250ms ease, border-color 250ms ease',
+            }}
+            aria-label={`${name} - ${role}`}
+          >
+            {iconPath ? (
+              <svg
+                viewBox="0 0 24 24"
+                style={{
+                  width: size * 0.55,
+                  height: size * 0.55,
+                  fill: lit ? brand : 'rgba(245,245,240,0.85)',
+                  filter: hovered
+                    ? `drop-shadow(0 0 10px ${brand})`
+                    : lit
+                      ? `drop-shadow(0 0 6px ${brand}80)`
+                      : 'none',
+                  transition: 'fill 220ms ease, filter 220ms ease',
+                }}
+                aria-hidden
+              >
+                <path d={iconPath} />
+              </svg>
+            ) : (
+              <span
+                className="font-mono uppercase"
+                style={{
+                  fontSize: size * 0.22,
+                  color: lit ? brand : undefined,
+                  transition: 'color 220ms ease',
+                }}
+              >
+                {name.slice(0, 3)}
+              </span>
+            )}
+            <span
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-12 whitespace-nowrap rounded-md border border-line bg-elevated px-2 py-1 text-[11px] font-mono text-text opacity-0 transition-opacity group-hover:opacity-100"
+              style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.5)' }}
+            >
+              <span style={{ color: brand }}>●</span> {name}
+              <span className="text-muted ml-2">
+                {role}
+                {years ? ` · ${years}y` : ''}
+              </span>
+            </span>
+          </button>
+        </motion.div>
+      </div>
+    </div>
   );
 }
