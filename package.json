@@ -15,6 +15,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
+    "assets:seo": "node scripts/gen-seo-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
@@ -62,8 +63,6 @@
     "wrangler": "^3.99.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,astro,json,css}": [
-      "biome check --write --no-errors-on-unmatched"
-    ]
+    "*.{js,jsx,ts,tsx,astro,json,css}": ["biome check --write --no-errors-on-unmatched"]
   }
 }

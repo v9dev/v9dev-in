@@ -3,7 +3,7 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["dist", ".astro", ".wrangler", "node_modules", "public/fonts", "coverage"]
+    "ignore": ["dist", ".astro", ".wrangler", "node_modules", "public/fonts", "coverage", "scripts"]
   },
   "formatter": {
     "enabled": true,
