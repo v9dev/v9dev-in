@@ -164,12 +164,12 @@ export default function Constellation() {
   const highlight = useMemo(() => {
     if (!geo || !hoveredId || realLength <= 0) return null;
     const hn = geo.nodes.find((n) => n.id === hoveredId);
-    if (!hn) return null;
+    if (!hn || progress < hn.pathFraction) return null;
     return {
       dash: highlightDash(realLength, hn.pathFraction, HIGHLIGHT_WINDOW_PX),
       brand: hn.skill.brand,
     };
-  }, [geo, hoveredId, realLength]);
+  }, [geo, hoveredId, realLength, progress]);
 
   if (!geo) {
     return <div ref={containerRef} className="min-h-[60vh]" aria-hidden />;
@@ -204,7 +204,9 @@ export default function Constellation() {
         height={geo.height}
         className="absolute inset-0 pointer-events-none"
         style={{
-          transform: `translate3d(${-pointer.x * PATH_DEPTH * PARALLAX_MAX_PX}px, ${-pointer.y * PATH_DEPTH * PARALLAX_MAX_PX}px, 0)`,
+          transform: motionEnabled
+            ? `translate3d(${-pointer.x * PATH_DEPTH * PARALLAX_MAX_PX}px, ${-pointer.y * PATH_DEPTH * PARALLAX_MAX_PX}px, 0)`
+            : 'none',
           transition: 'transform 160ms ease-out',
         }}
         aria-hidden
@@ -279,8 +281,8 @@ export default function Constellation() {
       {/* Card chip riding the path */}
       {card && progress > 0.01 && progress < 0.995 && (
         <PathChip
-          x={card.x}
-          y={card.y}
+          x={card.x + -pointer.x * PATH_DEPTH * PARALLAX_MAX_PX}
+          y={card.y + -pointer.y * PATH_DEPTH * PARALLAX_MAX_PX}
           name={card.skill?.name ?? '-'}
           role={card.skill?.role ?? ''}
           brand={card.skill?.brand ?? '#B8FF3A'}
@@ -438,7 +440,7 @@ function SkillNode({
         style={{
           width: '100%',
           height: '100%',
-          transform: `translate3d(${tx}px, ${ty}px, 0) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+          transform: `translate3d(${tx}px, ${ty}px, 0) rotateX(${motionEnabled ? tilt.rx : 0}deg) rotateY(${motionEnabled ? tilt.ry : 0}deg)`,
           transition: 'transform 160ms ease-out',
           willChange: isAnimating ? 'transform' : 'auto',
         }}
