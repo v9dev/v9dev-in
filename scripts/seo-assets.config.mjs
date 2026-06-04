@@ -1,7 +1,10 @@
 // Single source of truth for SEO asset generation. Static descriptors
 // only - no logic. Consumed by scripts/gen-seo-assets.mjs.
 
-/** Brand palette (mirrors the site tokens). */
+/** Tracked, non-served brand source (not under public/). */
+export const SOURCE_LOGO = 'assets/brand/v9-logo.jpg';
+
+/** Brand palette for asset rendering. `muted` is a canvas-compositing variant tuned for these images, not the CSS --color-muted token. */
 export const COLORS = {
   lime: '#b8ff3a',
   canvas: '#0a0a0f',
@@ -30,7 +33,7 @@ export const OG = {
   height: 630,
   label: 'v9dev.in',
   name: 'JP Singh',
-  role: 'Forward Deployed Engineer - Cloud + Full-stack',
+  role: 'Forward Deployed Engineer · Cloud + Full-stack',
   tagline:
     'I design cloud platforms, build full-stack products, and keep them alive in production. From a single VPS to multi-region Kubernetes. Available for work.',
   alt: 'JP Singh - v9dev - Forward Deployed Engineer',
