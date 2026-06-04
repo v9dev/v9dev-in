@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.0",
-  "description": "v9dev.in — JP Singh's portfolio site",
+  "description": "v9dev.in - JP Singh's portfolio site",
   "scripts": {
     "dev": "astro dev",
     "build": "astro check && astro build",

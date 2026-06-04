@@ -8,6 +8,8 @@ interface Props {
 const { title, description, ogImage = '/og/default.png' } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://v9dev.in').toString();
 const og = new URL(ogImage, Astro.site ?? 'https://v9dev.in').toString();
+// Keep in sync with OG.alt in scripts/seo-assets.config.mjs (config can't be imported here).
+const ogAlt = 'JP Singh - v9dev - Forward Deployed Engineer';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -16,11 +18,7 @@ const jsonLd = {
   alternateName: 'v9dev',
   jobTitle: 'Forward Deployed Engineer',
   url: 'https://v9dev.in',
-  sameAs: [
-    'https://github.com/v9dev',
-    'https://www.linkedin.com/in/v9dev',
-    'https://x.com/v9devx',
-  ],
+  sameAs: ['https://github.com/v9dev', 'https://www.linkedin.com/in/v9dev', 'https://x.com/v9devx'],
   knowsAbout: [
     'Cloud Architecture',
     'Kubernetes',
@@ -58,6 +56,7 @@ const jsonLd = {
 <meta property="og:image" content={og} />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={ogAlt} />
 <meta property="og:site_name" content="v9dev.in" />
 <meta property="og:locale" content="en_US" />
 
@@ -66,13 +65,13 @@ const jsonLd = {
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={og} />
+<meta name="twitter:image:alt" content={ogAlt} />
 <meta name="twitter:creator" content="@v9devx" />
 
 <!-- Icons -->
-<link rel="icon" href="/favicon.ico" sizes="any" />
-<link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-<link rel="mask-icon" href="/icons/mask-icon.svg" color="#b8ff3a" />
 <link rel="manifest" href="/manifest.webmanifest" />
 
 <!-- Person schema for the knowledge panel -->
