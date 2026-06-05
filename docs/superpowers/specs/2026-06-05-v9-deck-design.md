@@ -34,9 +34,10 @@ keeps "all of it" cohesive instead of a junk drawer of bolted-on toys.
 
 ## Decisions (locked for v1; adjustable on review)
 
-- **Placement:** dedicated page `/deck`. Homepage entry point - see the
-  open PLACEMENT decision below (keep Notes + add a teaser section, vs
-  replace Notes). Default: keep Notes, add a teaser.
+- **Placement (locked):** dedicated page `/deck`, plus a Deck teaser as
+  a NEW homepage section inserted **before Notes** (between Work and
+  Notes) at `data-index=6`; renumber Notes 6->7, Contact 7->8, Footer
+  8->9. Notes is kept.
 - **Terminal voice:** operational, with a light touch of personality
   (e.g. echoed input `connect nginx stalwart`, then a styled result
   `LINK nginx -> stalwart  OK`; boot lines with a wink).
@@ -52,23 +53,16 @@ keeps "all of it" cohesive instead of a junk drawer of bolted-on toys.
   project's stack and is currently a dangling id). Exact edit specified
   under Data fix.
 
-## Open decision (one, for review)
+## Placement (locked)
 
-**PLACEMENT - homepage entry point.** The current Notes section
-(`src/components/sections/Blog/Blog.astro`, id `blog`, `data-index=6`) is
-NOT empty - it has a deliberate creative line ("No blog yet. If you'd
-actually read it, I'll write it.") and a CTA, and `Nav.astro` links to it
-(`{ label: 'Notes', href: '#blog' }`). Two options:
-
-- **(A) Keep Notes, add a Deck teaser as a new section** (default).
-  Insert `DeckTeaser` after Notes; renumber Contact `data-index` 7->8 and
-  Footer 8->9 (ScrollProgress auto-counts, so this is just attribute
-  edits). Add a `Deck -> /deck` entry to `Nav.astro`. Preserves the joke.
-- **(B) Replace Notes with the Deck teaser.** Repurpose the
-  `data-index=6` slot; change the `Nav.astro` `Notes -> #blog` link to
-  `Deck -> /deck`. Loses the "No blog yet" line.
-
-Pick A or B on review. Everything else below is independent of this.
+The current Notes section (`src/components/sections/Blog/Blog.astro`, id
+`blog`) is kept. A new `DeckTeaser` section is inserted **before Notes**
+(between Work `data-index=5` and Notes) at `data-index=6`. Renumber:
+Notes 6->7, Contact 7->8, Footer 8->9 (ScrollProgress auto-counts, so
+this is just `data-index` attribute edits in `index.astro` and the
+section files). Add a `Deck -> /deck` entry to `Nav.astro` (the existing
+`Notes -> #blog` link is unchanged). The teaser section id is
+`deck-teaser` to avoid any confusion with the `/deck` route.
 
 ## Goals
 
@@ -107,9 +101,10 @@ Pick A or B on review. Everything else below is independent of this.
   static shell (mono label, heading, ambient blobs, `container-page`)
   mounting `<Deck client:load />` - it is the page's primary content, so
   eager hydration is appropriate.
-- **Homepage entry:** per the PLACEMENT decision. The teaser is a static
-  Astro section (mini ASCII diagram + a `MagneticButton` "launch the
-  deck ->" linking to `/deck`). Light on the homepage; no island needed.
+- **Homepage entry:** a new static Astro section `DeckTeaser` (id
+  `deck-teaser`, `data-index=6`) inserted before Notes - a mini ASCII
+  diagram + a `MagneticButton` "launch the deck ->" linking to `/deck`.
+  Light on the homepage; no island needed.
 - **Nav:** make `Nav.astro` route-aware. It already builds a `links`
   array shared with `MobileMenu`. On the homepage, section links stay as
   `#anchor` (so `SmoothScroll`, which intercepts only `a[href^="#"]`,
@@ -486,14 +481,15 @@ New:
 - `vitest.config.ts` (alias resolution; Phase 0)
 
 Modified:
-- `src/pages/index.astro` (insert/replace per the PLACEMENT decision)
-- `src/components/astro/Nav.astro` (route-aware hrefs + `Deck` entry; if
-  option B, also retarget the `Notes -> #blog` link)
+- `src/pages/index.astro` (insert `DeckTeaser` before Notes; bump the
+  `data-index` of Notes 6->7, Contact 7->8, Footer 8->9)
+- the Notes/Contact/Footer section files as needed for their `data-index`
+  attribute bumps
+- `src/components/astro/Nav.astro` (route-aware hrefs + `Deck` entry;
+  `Notes -> #blog` unchanged)
 - `src/content/skills.ts` + `src/lib/icons.ts` (add `php`)
 - `src/styles/global.css` (add `@keyframes wire-flow` + reduced-motion
   guard)
-- (Option A only) `src/components/sections/Contact/...` + footer
-  `data-index` bumps 7->8, 8->9
 - (Optional, Section 8) `src/components/sections/SkillConstellation/
   Constellation.tsx` + a copied `highlightDash` helper
 
