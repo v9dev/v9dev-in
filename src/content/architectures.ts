@@ -440,7 +440,7 @@ const ci: Architecture = {
     {
       id: 'registry',
       label: 'Registry',
-      kind: 'datastore',
+      kind: 'service',
       accent: '#3ae0ff',
       abbr: 'REG',
       col: 3,

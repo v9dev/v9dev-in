@@ -1,4 +1,4 @@
-import { bootOrder } from '@components/deck/board';
+import { bootOrder, canConnect } from '@components/deck/board';
 import { describe, expect, it } from 'vitest';
 import { architectures } from './architectures';
 
@@ -30,6 +30,12 @@ describe('architectures (game scenarios)', () => {
 
       it('reference topology boots every node (no unreachable)', () => {
         expect(bootOrder(arch, arch.edges).unreachable).toEqual([]);
+      });
+
+      it('every reference edge is recreatable via canConnect', () => {
+        for (const edge of arch.edges) {
+          expect(canConnect(arch, edge.from, edge.to).ok).toBe(true);
+        }
       });
     });
   }
