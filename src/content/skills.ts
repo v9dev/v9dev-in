@@ -39,6 +39,7 @@ export const skills: Skill[] = [
   { id: 'python', name: 'Python', role: 'Programming Language', cluster: 'language', icon: 'python', brand: '#3776AB', years: 4 },
   { id: 'c', name: 'C', role: 'Systems Programming', cluster: 'language', icon: 'c', brand: '#A8B9CC', years: 3 },
   { id: 'bash', name: 'Bash', role: 'Shell Scripting', cluster: 'language', icon: 'gnubash', brand: '#4EAA25', years: 3 },
+  { id: 'php', name: 'PHP', role: 'Server-side language', cluster: 'language', icon: 'php', brand: '#777BB4', years: 5 },
 
   // ── Frontend ──────────────────────────────────────────────
   { id: 'react', name: 'React', role: 'Frontend Framework', cluster: 'frontend', icon: 'react', brand: '#61DAFB', years: 4 },
