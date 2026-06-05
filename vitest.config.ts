@@ -1,4 +1,7 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
   test: {
@@ -15,10 +18,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': new URL('./src', import.meta.url).pathname,
-      '@components': new URL('./src/components', import.meta.url).pathname,
-      '@lib': new URL('./src/lib', import.meta.url).pathname,
-      '@content': new URL('./src/content', import.meta.url).pathname,
+      '@': r('./src'),
+      '@components': r('./src/components'),
+      '@lib': r('./src/lib'),
+      '@content': r('./src/content'),
+      '@styles': r('./src/styles'),
     },
   },
 });
