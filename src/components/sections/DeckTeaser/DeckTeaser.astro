@@ -28,13 +28,15 @@ const diagram = [
         <span>06 · Deck</span>
       </div>
       <h2 class="font-display font-semibold text-balance leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)]">
-        Operate the
+        Fire up the
         <br />
         <span class="text-lime">architecture.</span>
       </h2>
       <p class="mt-6 text-muted text-lg leading-relaxed max-w-md">
-        A live command deck for my real mail server. Wire the services, boot the
-        stack in dependency order, and inspect every node - by command or by hand.
+        A terminal game. <code class="font-mono text-text">ls</code> the scenarios,
+        <code class="font-mono text-text">play</code> one, then wire the services and
+        <code class="font-mono text-text">boot</code> the stack in dependency order - all by
+        real command.
       </p>
 
       <div class="mt-10">
@@ -43,10 +45,10 @@ const diagram = [
           href="/deck"
           strength={0.3}
           radius={80}
-          data-cursor-label="launch"
+          data-cursor-label="play"
           className="rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-canvas hover:bg-lime/90"
         >
-          launch the deck →
+          play the deck →
         </MagneticButton>
       </div>
     </div>
@@ -67,7 +69,7 @@ const diagram = [
         class="font-mono text-[11px] sm:text-xs leading-relaxed text-text/80 overflow-x-auto"
       >{diagram.join('\n')}</pre>
       <p class="mt-5 font-mono text-[11px] uppercase tracking-widest text-lime/70">
-        $ connect nginx stalwart
+        $ connect nginx stalwart &amp;&amp; boot
       </p>
     </div>
   </div>
