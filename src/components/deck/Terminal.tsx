@@ -12,7 +12,15 @@ interface Props {
   onRun: (cmd: Command) => void;
 }
 
-const HINTS = ['help', 'ls', 'connect nginx stalwart', 'boot', 'reset', 'skills'] as const;
+const HINTS = [
+  'help',
+  'ls',
+  'connect nginx stalwart',
+  'boot',
+  'reset',
+  'skills',
+  'skills cloud',
+] as const;
 
 const LINE_CLASS: Record<LogKind, string> = {
   input: 'text-text/55',

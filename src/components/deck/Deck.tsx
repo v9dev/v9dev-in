@@ -3,6 +3,7 @@ import { prefersReducedMotion, stagger } from '@lib/motion';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import DetailDrawer from './DetailDrawer';
 import Diagram from './Diagram';
+import SkillsChart from './SkillsChart';
 import Terminal from './Terminal';
 import { bootOrder, canConnect } from './board';
 import type { Command } from './commands';
@@ -20,8 +21,11 @@ const bootUnreachableLine = (id: string): string =>
 
 export default function Deck() {
   const [state, dispatch] = useReducer(deckReducer, arch, initDeckState);
-  // Local chart selection - the chart itself is wired in Group F.
-  const [, setSkillsCluster] = useState<string | null>(null);
+  // The `skills` command output. `skillsCluster` is the active filter (null =
+  // all clusters); `skillsActive` gates the chart panel so it only appears once
+  // `skills` has been run (and can be dismissed without clearing the log).
+  const [skillsCluster, setSkillsCluster] = useState<string | null>(null);
+  const [skillsActive, setSkillsActive] = useState(false);
 
   // A single batched, screen-reader-only summary of the last boot. The rapid
   // per-step `boot:` up-lines are dispatched as the `boot` LogKind, which the
@@ -110,12 +114,13 @@ export default function Deck() {
     }
     if (cmd.kind === 'skills') {
       setSkillsCluster(cmd.cluster);
+      setSkillsActive(true);
       dispatch({
         type: 'LOG',
         kind: 'output',
         text: `skills${cmd.cluster ? ` ${cmd.cluster}` : ''}`,
       });
-      return; // chart wired in Group F
+      return;
     }
     // action
     dispatch({ type: 'LOG', kind: 'input', text: cmd.echo });
@@ -145,10 +150,36 @@ export default function Deck() {
   );
   const closeDrawer = useCallback(() => dispatch({ type: 'SELECT_NODE', id: null }), []);
 
+  const closeSkills = useCallback(() => setSkillsActive(false), []);
+
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Terminal arch={arch} log={state.log} history={state.history} onRun={runCommand} />
       <Diagram arch={arch} state={state} dispatch={dispatch} onRun={runCommand} />
+      {/* `skills` output region: spans both columns under the deck so the chart
+          reads as the most-recent command output without crowding the diagram. */}
+      {skillsActive && (
+        <section
+          aria-label="skills chart"
+          data-lenis-prevent
+          className="max-h-[28rem] overflow-y-auto rounded-2xl border border-line bg-elevated/70 p-5 backdrop-blur-xl md:col-span-2"
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
+              deck://skills
+            </span>
+            <button
+              type="button"
+              onClick={closeSkills}
+              className="rounded-full border border-line/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime"
+              data-cursor-label="close"
+            >
+              close
+            </button>
+          </div>
+          <SkillsChart cluster={skillsCluster} />
+        </section>
+      )}
       <DetailDrawer node={selectedNode} open={state.selectedNodeId != null} onClose={closeDrawer} />
       {/* Single batched boot announcement - the per-step `boot:` up-lines render
           aria-hidden inside the Terminal log, so this <output> (implicit
