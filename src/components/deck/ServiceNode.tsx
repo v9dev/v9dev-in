@@ -2,6 +2,8 @@ import type { ArchNode } from '@content/architectures';
 import { skillsById } from '@content/skills';
 import { cn } from '@lib/cn';
 import { getIconPath } from '@lib/icons';
+import { easings } from '@lib/motion';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface Props {
   node: ArchNode;
@@ -15,6 +17,10 @@ interface Props {
   wiring?: boolean;
   /** Whether this in-port is the current drag-to-wire snap target. */
   snapTarget?: boolean;
+  /** Whether this node is "up" after a boot (green accent + one-shot pulse). */
+  bootUp?: boolean;
+  /** Whether this node is unreachable after a boot (red outline). */
+  bootUnreachable?: boolean;
   /** Disable transitions for the ring/scale affordance (reduced motion). */
   reducedMotion?: boolean;
   /** Activate the `out` port: arms this node as a wiring source. */
@@ -46,6 +52,8 @@ export default function ServiceNode({
   candidate,
   wiring,
   snapTarget,
+  bootUp,
+  bootUnreachable,
   reducedMotion,
   onPortOut,
   onPortIn,
@@ -58,6 +66,16 @@ export default function ServiceNode({
   const iconPath = node.skillId ? getIconPath(node.skillId) : undefined;
   const fallback = node.abbr ?? node.label.slice(0, 3).toUpperCase();
   const transition = reducedMotion ? '' : 'transition-transform';
+
+  // Boot border color, applied as an INLINE style (not a CSS-transition class):
+  // under reduced motion global.css forces transition-duration to 200ms, so a
+  // class-based flip would still tween - inline keeps the up/unreachable color
+  // instant. Unreachable (red) wins over up (green) when both are somehow set.
+  const bootBorder = bootUnreachable
+    ? 'var(--color-fuchsia)'
+    : bootUp
+      ? 'var(--color-lime)'
+      : undefined;
 
   return (
     <div
@@ -110,14 +128,30 @@ export default function ServiceNode({
         onPointerDown={(e) => onNodeDragStart?.(node.id, e)}
         data-cursor-label={node.label.toLowerCase()}
         className={cn(
-          'group flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
+          'group relative flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
           reducedMotion ? '' : 'transition-colors',
         )}
         style={{
-          borderColor: armed || candidate ? accent : undefined,
+          borderColor: bootBorder ?? (armed || candidate ? accent : undefined),
           opacity: wiring && !armed && !candidate ? 0.55 : undefined,
         }}
       >
+        {/* One-shot "up" pulse ring. Gated entirely off under reduced motion
+            (the final green color is carried by the inline border above). */}
+        {!reducedMotion && (
+          <AnimatePresence>
+            {bootUp && (
+              <motion.span
+                key="boot-pulse"
+                aria-hidden
+                className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-lime"
+                initial={{ opacity: 0.9, scale: 1 }}
+                animate={{ opacity: 0, scale: 1.18 }}
+                transition={{ duration: 0.7, ease: easings.outExpo }}
+              />
+            )}
+          </AnimatePresence>
+        )}
         <span
           className="flex size-9 items-center justify-center rounded-lg border border-line/60"
           style={{ boxShadow: `inset 0 0 0 1px ${accent}22` }}

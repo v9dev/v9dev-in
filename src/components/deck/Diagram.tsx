@@ -73,6 +73,11 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
 
   const armedFrom = state.armedFrom;
 
+  // Boot status sets, derived from the reducer. Membership drives the green
+  // "up" pulse and the red "unreachable" outline on each ServiceNode.
+  const bootUp = useMemo(() => new Set(state.boot.up), [state.boot.up]);
+  const bootUnreachable = useMemo(() => new Set(state.boot.unreachable), [state.boot.unreachable]);
+
   // The set of valid target node ids while a source is armed (drives the
   // candidate ring/scale affordance on the IN ports).
   const candidates = useMemo(() => {
@@ -471,6 +476,8 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             candidate={candidates.has(p.node.id)}
             wiring={armedFrom != null}
             snapTarget={snapTargetId === p.node.id}
+            bootUp={bootUp.has(p.node.id)}
+            bootUnreachable={bootUnreachable.has(p.node.id)}
             reducedMotion={reduced}
             onPortOut={handlePortOut}
             onPortIn={handlePortIn}
