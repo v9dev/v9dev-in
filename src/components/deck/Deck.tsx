@@ -1,13 +1,20 @@
-import { architectureBySlug } from '@content/architectures';
+import { type Architecture, architectureBySlug } from '@content/architectures';
 import { prefersReducedMotion, stagger } from '@lib/motion';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import DetailDrawer from './DetailDrawer';
 import Diagram from './Diagram';
-import SkillsChart from './SkillsChart';
 import Terminal from './Terminal';
-import { bootOrder, canConnect } from './board';
-import type { Command } from './commands';
-import { deckReducer, initDeckState } from './state';
+import { bootOrder, canConnect, isComplete, nextHint, objectiveProgress } from './board';
+import type { Command, Ctx, GameVerb } from './commands';
+import { type DeckAction, type DeckState, deckReducer, initDeckState } from './state';
 
 const arch = architectureBySlug['stalwart-mail'];
 
@@ -19,13 +26,87 @@ const bootUpLine = (id: string): string => `boot: ${id} ... up`;
 const bootUnreachableLine = (id: string): string =>
   `boot: ${id} unreachable - missing a required wire`;
 
+// Resolve a high-level game verb against the live board. Date.now() is captured
+// HERE (the browser island), never in the reducer, and passed via the action
+// `at` field so the reducer stays pure. The HUD/menu/win-panel UI is layered on
+// top of this state in a later task; this is the command-driven core loop.
+function runGame(
+  cmd: { kind: 'game'; verb: GameVerb; arg?: string; echo: string },
+  activeArch: Architecture,
+  state: DeckState,
+  dispatch: Dispatch<DeckAction>,
+): void {
+  dispatch({ type: 'LOG', kind: 'input', text: cmd.echo });
+  switch (cmd.verb) {
+    case 'play': {
+      const next = cmd.arg ? architectureBySlug[cmd.arg] : undefined;
+      if (!next) {
+        dispatch({ type: 'LOG', kind: 'error', text: `unknown game: ${cmd.arg ?? ''}` });
+        return;
+      }
+      dispatch({ type: 'PLAY', arch: next, at: Date.now() });
+      return;
+    }
+    case 'reset':
+      dispatch({ type: 'RESET', arch: activeArch, at: Date.now() });
+      return;
+    case 'menu':
+      dispatch({ type: 'MENU' });
+      return;
+    case 'status': {
+      const p = objectiveProgress(activeArch, state.edges);
+      dispatch({
+        type: 'LOG',
+        kind: 'output',
+        text: `progress ${p.pct}% - ${p.satisfied}/${p.total} required wires`,
+      });
+      if (p.extra.length > 0) {
+        dispatch({
+          type: 'LOG',
+          kind: 'output',
+          text: `extra wires (not required): ${p.extra.map((e) => `${e.from}->${e.to}`).join(', ')}`,
+        });
+      }
+      if (p.missing.length > 0) {
+        dispatch({
+          type: 'LOG',
+          kind: 'output',
+          text: `missing: ${p.missing.map((e) => `${e.from}->${e.to}`).join(', ')}`,
+        });
+      } else {
+        dispatch({ type: 'LOG', kind: 'output', text: "all required wires present - try 'boot'" });
+      }
+      return;
+    }
+    case 'hint': {
+      dispatch({ type: 'HINT' });
+      const h = nextHint(activeArch, state.edges);
+      dispatch({
+        type: 'LOG',
+        kind: 'output',
+        text: h
+          ? `hint: connect ${h.from} ${h.to}`
+          : 'nothing to wire - all required wires present',
+      });
+      return;
+    }
+    case 'boot': {
+      if (isComplete(activeArch, state.edges)) {
+        dispatch({ type: 'WIN', at: Date.now() });
+      }
+      // The boot animation runs as the reward (and as the failure report when
+      // the topology is incomplete - unreachable nodes are flagged in the log).
+      dispatch({ type: 'BOOT_START' });
+      return;
+    }
+  }
+}
+
 export default function Deck() {
   const [state, dispatch] = useReducer(deckReducer, arch, initDeckState);
-  // The `skills` command output. `skillsCluster` is the active filter (null =
-  // all clusters); `skillsActive` gates the chart panel so it only appears once
-  // `skills` has been run (and can be dismissed without clearing the log).
-  const [skillsCluster, setSkillsCluster] = useState<string | null>(null);
-  const [skillsActive, setSkillsActive] = useState(false);
+  // The arch currently in play is keyed off the session slug (PLAY swaps it),
+  // falling back to the default scenario.
+  const activeArch = architectureBySlug[state.archSlug] ?? arch;
 
   // A single batched, screen-reader-only summary of the last boot. The rapid
   // per-step `boot:` up-lines are dispatched as the `boot` LogKind, which the
@@ -59,7 +140,7 @@ export default function Deck() {
     // or stale ticks would fire BOOT_STEP/LOG against the freshly-reset state.
     clearBootTimers();
     if (!state.boot.running) return;
-    const r = bootOrder(arch, state.edges);
+    const r = bootOrder(activeArch, state.edges);
     // Single polite announcement: only the up-count. The unreachable `error`
     // lines are themselves live and announce per node, so the summary omits the
     // unreachable count to avoid double-announcing the same information.
@@ -106,83 +187,61 @@ export default function Deck() {
   // Cancel any in-flight boot timers on unmount.
   useEffect(() => clearBootTimers, [clearBootTimers]);
 
-  const runCommand = useCallback((cmd: Command) => {
-    if (cmd.kind === 'print') {
-      for (const text of cmd.lines) dispatch({ type: 'LOG', kind: 'output', text });
-      return;
-    }
-    if (cmd.kind === 'error') {
-      dispatch({ type: 'LOG', kind: 'error', text: cmd.message });
-      return;
-    }
-    if (cmd.kind === 'skills') {
-      setSkillsCluster(cmd.cluster);
-      setSkillsActive(true);
-      dispatch({
-        type: 'LOG',
-        kind: 'output',
-        text: `skills${cmd.cluster ? ` ${cmd.cluster}` : ''}`,
-      });
-      return;
-    }
-    // action
-    dispatch({ type: 'LOG', kind: 'input', text: cmd.echo });
-    const a = cmd.action;
-    if (a.type === 'CONNECT') {
-      const v = canConnect(arch, a.from, a.to);
-      if (!v.ok) {
-        dispatch({ type: 'LOG', kind: 'error', text: `! ${v.reason}` });
+  const runCommand = useCallback(
+    (cmd: Command) => {
+      if (cmd.kind === 'print') {
+        for (const text of cmd.lines) dispatch({ type: 'LOG', kind: 'output', text });
+        return;
+      }
+      if (cmd.kind === 'error') {
+        dispatch({ type: 'LOG', kind: 'error', text: cmd.message });
+        return;
+      }
+      if (cmd.kind === 'game') {
+        runGame(cmd, activeArch, state, dispatch);
+        return;
+      }
+      // action
+      dispatch({ type: 'LOG', kind: 'input', text: cmd.echo });
+      const a = cmd.action;
+      if (a.type === 'CONNECT') {
+        const v = canConnect(activeArch, a.from, a.to);
+        if (!v.ok) {
+          dispatch({ type: 'LOG', kind: 'error', text: `! ${v.reason}` });
+          return;
+        }
+        dispatch(a);
+        dispatch({ type: 'LOG', kind: 'output', text: `LINK ${a.from} -> ${a.to}  OK` });
+        return;
+      }
+      if (a.type === 'DISCONNECT') {
+        dispatch(a);
+        dispatch({ type: 'LOG', kind: 'output', text: `UNLINK ${a.from} -> ${a.to}` });
         return;
       }
       dispatch(a);
-      dispatch({ type: 'LOG', kind: 'output', text: `LINK ${a.from} -> ${a.to}  OK` });
-      return;
-    }
-    if (a.type === 'DISCONNECT') {
-      dispatch(a);
-      dispatch({ type: 'LOG', kind: 'output', text: `UNLINK ${a.from} -> ${a.to}` });
-      return;
-    }
-    dispatch(a);
-  }, []);
+    },
+    [activeArch, state],
+  );
 
   // Drawer open is derived: the drawer is open whenever a node is selected.
   const selectedNode = useMemo(
-    () => arch.nodes.find((n) => n.id === state.selectedNodeId) ?? null,
-    [state.selectedNodeId],
+    () => activeArch.nodes.find((n) => n.id === state.selectedNodeId) ?? null,
+    [activeArch, state.selectedNodeId],
   );
   const closeDrawer = useCallback(() => dispatch({ type: 'SELECT_NODE', id: null }), []);
 
-  const closeSkills = useCallback(() => setSkillsActive(false), []);
+  // Parse context for the terminal: the live phase + the loaded arch (null at
+  // the menu) drive node-id validation, completion, and menu-phase gating.
+  const ctx: Ctx = {
+    phase: state.phase,
+    arch: state.phase === 'menu' ? null : activeArch,
+  };
 
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-      <Terminal arch={arch} log={state.log} history={state.history} onRun={runCommand} />
-      <Diagram arch={arch} state={state} dispatch={dispatch} onRun={runCommand} />
-      {/* `skills` output region: spans both columns under the deck so the chart
-          reads as the most-recent command output without crowding the diagram. */}
-      {skillsActive && (
-        <section
-          aria-label="skills chart"
-          data-lenis-prevent
-          className="max-h-[28rem] overflow-y-auto rounded-2xl border border-line bg-elevated/70 p-5 backdrop-blur-xl md:col-span-2"
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
-              deck://skills
-            </span>
-            <button
-              type="button"
-              onClick={closeSkills}
-              className="rounded-full border border-line/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime"
-              data-cursor-label="close"
-            >
-              close
-            </button>
-          </div>
-          <SkillsChart cluster={skillsCluster} />
-        </section>
-      )}
+      <Terminal ctx={ctx} log={state.log} history={state.history} onRun={runCommand} />
+      <Diagram arch={activeArch} state={state} dispatch={dispatch} onRun={runCommand} />
       <DetailDrawer node={selectedNode} open={state.selectedNodeId != null} onClose={closeDrawer} />
       {/* Single batched boot announcement - the per-step `boot:` up-lines render
           aria-hidden inside the Terminal log, so this <output> (implicit

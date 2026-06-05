@@ -1,26 +1,16 @@
-import type { Architecture } from '@content/architectures';
 import { cn } from '@lib/cn';
 import { useEffect, useRef, useState } from 'react';
-import { complete, parse } from './commands';
-import type { Command } from './commands';
+import { type Command, type Ctx, complete, parse } from './commands';
 import type { LogKind, LogLine } from './state';
 
 interface Props {
-  arch: Architecture;
+  ctx: Ctx;
   log: LogLine[];
   history: string[];
   onRun: (cmd: Command) => void;
 }
 
-const HINTS = [
-  'help',
-  'ls',
-  'connect nginx stalwart',
-  'boot',
-  'reset',
-  'skills',
-  'skills cloud',
-] as const;
+const HINTS = ['help', 'ls', 'play stalwart-mail', 'status', 'hint', 'boot'] as const;
 
 const LINE_CLASS: Record<LogKind, string> = {
   input: 'text-text/55',
@@ -43,7 +33,7 @@ function commonPrefix(items: string[]): string {
   return prefix;
 }
 
-export default function Terminal({ arch, log, history, onRun }: Props) {
+export default function Terminal({ ctx, log, history, onRun }: Props) {
   const [value, setValue] = useState('');
   const [histIndex, setHistIndex] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -59,7 +49,7 @@ export default function Terminal({ arch, log, history, onRun }: Props) {
   const submit = () => {
     const text = value;
     if (!text.trim()) return;
-    onRun(parse(text, arch));
+    onRun(parse(text, ctx));
     setValue('');
     setHistIndex(null);
   };
@@ -72,7 +62,7 @@ export default function Terminal({ arch, log, history, onRun }: Props) {
     }
     if (e.key === 'Tab') {
       e.preventDefault();
-      const options = complete(value, arch);
+      const options = complete(value, ctx);
       if (options.length === 0) return;
       const parts = value.trimStart().split(/\s+/);
       const head = parts.slice(0, -1).join(' ');
@@ -142,7 +132,7 @@ export default function Terminal({ arch, log, history, onRun }: Props) {
             key={hint}
             type="button"
             onClick={() => {
-              onRun(parse(hint, arch));
+              onRun(parse(hint, ctx));
               inputRef.current?.focus();
             }}
             className="rounded-full border border-line/80 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime"
