@@ -27,6 +27,13 @@ interface Props {
   onWireStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
   /** Begin a pointer drag to reposition this node's card. */
   onNodeDragStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
+  /**
+   * Returns true when the click that immediately follows a pointer drag should
+   * be swallowed (it is the synthesized click after a reposition that moved or a
+   * wire session). Reading it also clears the flag so the next genuine click
+   * goes through.
+   */
+  consumeClickSuppressed?: () => boolean;
 }
 
 const NODE_WIDTH = 132;
@@ -45,6 +52,7 @@ export default function ServiceNode({
   onSelect,
   onWireStart,
   onNodeDragStart,
+  consumeClickSuppressed,
 }: Props) {
   const accent = skillsById[node.skillId ?? '']?.brand ?? node.accent ?? 'var(--color-lime)';
   const iconPath = node.skillId ? getIconPath(node.skillId) : undefined;
@@ -76,7 +84,12 @@ export default function ServiceNode({
         type="button"
         aria-label={`wire out from ${node.label}`}
         data-cursor-label="wire out"
-        onClick={() => onPortOut?.(node.id)}
+        onClick={() => {
+          // Swallow the synthesized click that trails a drag-to-wire session so
+          // a drag does not also run the click-driven arm/disarm path.
+          if (consumeClickSuppressed?.()) return;
+          onPortOut?.(node.id);
+        }}
         onPointerDown={(e) => onWireStart?.(node.id, e)}
         className={cn(
           'absolute right-0 top-1/2 z-10 size-4 translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border bg-canvas hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
@@ -87,7 +100,13 @@ export default function ServiceNode({
 
       <button
         type="button"
-        onClick={() => onSelect?.(node.id)}
+        onClick={() => {
+          // Swallow the synthesized click that trails a reposition drag (one
+          // that moved past the threshold) so a drag does not also fire onSelect
+          // and open the detail drawer on drop.
+          if (consumeClickSuppressed?.()) return;
+          onSelect?.(node.id);
+        }}
         onPointerDown={(e) => onNodeDragStart?.(node.id, e)}
         data-cursor-label={node.label.toLowerCase()}
         className={cn(

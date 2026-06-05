@@ -21,7 +21,14 @@ const DRAG_THRESHOLD = 4;
 const SNAP_RADIUS = 48;
 
 type DragSession =
-  | { kind: 'wire'; nodeId: string; pointerId: number }
+  | {
+      kind: 'wire';
+      nodeId: string;
+      pointerId: number;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    }
   | {
       kind: 'node';
       nodeId: string;
@@ -84,6 +91,11 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   const dragRef = useRef<DragSession | null>(null);
   const pointerRef = useRef<Pos>({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
+  // Set on pointerup when a node drag actually moved or a wire session ran, so
+  // the trailing synthesized click on the same button is swallowed instead of
+  // running the click-driven onSelect / arm path. Cleared on the next pointerdown
+  // and when the click consumes it.
+  const suppressClickRef = useRef(false);
   const placedRef = useRef<Map<string, PlacedNode>>(placedById);
   placedRef.current = placedById;
 
@@ -139,6 +151,12 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     if (session.kind === 'wire') {
       const source = placedRef.current.get(session.nodeId);
       if (source) {
+        if (
+          !session.moved &&
+          Math.hypot(point.x - session.startX, point.y - session.startY) > DRAG_THRESHOLD
+        ) {
+          session.moved = true;
+        }
         const target = nearestTarget(session.nodeId, point);
         if (target !== snapTargetRef.current) {
           snapTargetRef.current = target;
@@ -164,18 +182,26 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   }, [nearestTarget]);
 
   const endDrag = useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, cancelled = false) => {
       const session = dragRef.current;
       dragRef.current = null;
       stopRaf();
       if (!session) return;
       const point = toLocal(clientX, clientY);
+      // pointercancel produces no trailing click, so never arm the suppression
+      // there (it would otherwise wrongly swallow a later keyboard activation).
+      const couldTrailClick = !cancelled;
 
       if (session.kind === 'wire') {
         const target = nearestTarget(session.nodeId, point);
         setWireDragging(false);
         setSnapTargetId(null);
         snapTargetRef.current = null;
+        // Swallow the trailing click only when this was a real drag (moved past
+        // the threshold) or it landed on a target - so it does not also run the
+        // click-driven arm path. A plain tap with no movement falls through to
+        // the D1 onClick arm (keeps tap-to-arm working on touch / mouse).
+        if (couldTrailClick && (session.moved || target)) suppressClickRef.current = true;
         if (target) {
           // Same path as a typed `connect` so validity, the LINK/error lines,
           // and history all match the terminal exactly.
@@ -192,6 +218,9 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
         // Drop the inline transform; the reducer's new left/top takes over.
         if (card) card.style.transform = '';
         if (session.moved) {
+          // Swallow the trailing click so a reposition does not also fire
+          // onSelect (which would open the detail drawer on drop).
+          if (couldTrailClick) suppressClickRef.current = true;
           const dx = point.x - session.startX;
           const dy = point.y - session.startY;
           dispatch({
@@ -221,14 +250,30 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [endDrag],
   );
 
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current || e.pointerId !== dragRef.current.pointerId) return;
+      endDrag(e.clientX, e.clientY, true);
+    },
+    [endDrag],
+  );
+
   // Begin a drag-to-wire session from an out port (pointer capture on the
   // canvas so move/up keep flowing even off the small port hit target).
   const handleWireStart = useCallback(
     (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       canvasRef.current?.setPointerCapture(e.pointerId);
-      dragRef.current = { kind: 'wire', nodeId: id, pointerId: e.pointerId };
-      pointerRef.current = toLocal(e.clientX, e.clientY);
+      const start = toLocal(e.clientX, e.clientY);
+      dragRef.current = {
+        kind: 'wire',
+        nodeId: id,
+        pointerId: e.pointerId,
+        startX: start.x,
+        startY: start.y,
+        moved: false,
+      };
+      pointerRef.current = start;
       snapTargetRef.current = null;
       setSnapTargetId(null);
       setWireDragging(true);
@@ -263,6 +308,15 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     },
     [frame, stopRaf, toLocal],
   );
+
+  // Read-and-clear the post-drag click suppression. Called from the card / out
+  // port onClick so the trailing synthesized click after a drag is swallowed
+  // once, and the next genuine click goes through.
+  const consumeClickSuppressed = useCallback(() => {
+    if (!suppressClickRef.current) return false;
+    suppressClickRef.current = false;
+    return true;
+  }, []);
 
   // Cancel any in-flight rAF on unmount.
   useEffect(() => stopRaf, [stopRaf]);
@@ -319,9 +373,13 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [onRun, state.armedFrom, state.edges],
   );
 
-  // Clicking empty canvas cancels an armed source.
+  // Clicking empty canvas cancels an armed source. This also fires (via bubbling)
+  // for every pointerdown inside the canvas, so it is where we clear any stale
+  // post-drag click-suppression: a new gesture always starts un-suppressed, and
+  // the flag only survives between a drag's pointerup and its trailing click.
   const handleCanvasPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      suppressClickRef.current = false;
       if (e.target === e.currentTarget) disarm();
     },
     [disarm],
@@ -346,7 +404,7 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onKeyDown={handleCanvasKeyDown}
       className="relative h-[clamp(22rem,60vh,40rem)] touch-none overflow-hidden rounded-2xl border border-line bg-canvas/60"
     >
@@ -418,6 +476,7 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             onPortIn={handlePortIn}
             onWireStart={handleWireStart}
             onNodeDragStart={handleNodeDragStart}
+            consumeClickSuppressed={consumeClickSuppressed}
           />
         ))}
     </div>
