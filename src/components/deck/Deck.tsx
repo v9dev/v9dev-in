@@ -54,8 +54,11 @@ export default function Deck() {
   const bootSeq = state.bootSeq;
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed off the bootSeq token; reads current boot.running + edges intentionally at trigger time.
   useEffect(() => {
-    if (!state.boot.running) return;
+    // Clear BEFORE the guard: a reset/load mid-animation changes bootSeq and sets
+    // running=false, re-running this effect - we must cancel in-flight timers then,
+    // or stale ticks would fire BOOT_STEP/LOG against the freshly-reset state.
     clearBootTimers();
+    if (!state.boot.running) return;
     const r = bootOrder(arch, state.edges);
     // Single polite announcement: only the up-count. The unreachable `error`
     // lines are themselves live and announce per node, so the summary omits the
