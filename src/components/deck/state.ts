@@ -4,7 +4,11 @@ export interface Pos {
   x: number;
   y: number;
 }
-export type LogKind = 'input' | 'output' | 'error' | 'system';
+// `boot` lines are machine-paced animation output (one per node, dispatched
+// rapidly). They render as visible scroll content but are kept OUT of the live
+// region announcement (see Terminal) - the batched <output> summary in Deck is
+// the single boot announcement, so the live region is never flooded.
+export type LogKind = 'input' | 'output' | 'error' | 'system' | 'boot';
 export interface LogLine {
   id: number;
   kind: LogKind;

@@ -22,9 +22,13 @@ export default function Deck() {
   // Local chart selection - the chart itself is wired in Group F.
   const [, setSkillsCluster] = useState<string | null>(null);
 
-  // A single batched, screen-reader-only summary of the last boot. Updated once
-  // per boot (not line-by-line) so the live region is never flooded - the
-  // visual per-step log lines below are scroll content, this is the announcement.
+  // A single batched, screen-reader-only summary of the last boot. The rapid
+  // per-step `boot:` up-lines are dispatched as the `boot` LogKind, which the
+  // Terminal renders aria-hidden (visible scroll content, excluded from its
+  // role=log live region) - so they never flood the announcement. This <output>
+  // is the one polite announcement of the up-count. The unreachable lines stay
+  // `error` (red, low-volume, genuinely live) and announce themselves, so the
+  // summary deliberately omits the unreachable count to avoid double-announcing.
   const [bootStatus, setBootStatus] = useState('');
 
   // Pending boot timers; cleared on re-trigger and on unmount.
@@ -48,33 +52,35 @@ export default function Deck() {
     if (!state.boot.running) return;
     clearBootTimers();
     const r = bootOrder(arch, state.edges);
-    const summaryParts = [
-      `boot complete - ${r.up.length} up`,
-      ...(r.unreachable.length ? [`${r.unreachable.length} unreachable`] : []),
-    ];
+    // Single polite announcement: only the up-count. The unreachable `error`
+    // lines are themselves live and announce per node, so the summary omits the
+    // unreachable count to avoid double-announcing the same information.
+    const summary = `boot complete - ${r.up.length} up`;
 
     if (prefersReducedMotion()) {
       // Instant: set every reachable node up, print every status line in one
-      // synchronous batch (React coalesces these into a single render, so the
-      // live region updates once), then finish.
+      // synchronous batch. The `boot` up-lines are visible-but-not-live; the
+      // `error` unreachable lines are live, and <output> announces the up-count.
       dispatch({ type: 'BOOT_STEP', up: r.up, unreachable: r.unreachable });
-      for (const id of r.order) dispatch({ type: 'LOG', kind: 'output', text: bootUpLine(id) });
+      for (const id of r.order) dispatch({ type: 'LOG', kind: 'boot', text: bootUpLine(id) });
       for (const id of r.unreachable) {
         dispatch({ type: 'LOG', kind: 'error', text: bootUnreachableLine(id) });
       }
       dispatch({ type: 'BOOT_DONE' });
-      setBootStatus(summaryParts.join(', '));
+      setBootStatus(summary);
       return;
     }
 
     // Animated: grow `up` one node per tick with a matching status line, then
     // flag any unreachable nodes, then finish. Timers are tracked for cleanup.
+    // Up-lines are the `boot` kind (excluded from the live region) so the
+    // animated burst never floods the announcement.
     const up: string[] = [];
     r.order.forEach((id, i) => {
       const t = setTimeout(() => {
         up.push(id);
         dispatch({ type: 'BOOT_STEP', up: [...up], unreachable: [] });
-        dispatch({ type: 'LOG', kind: 'output', text: bootUpLine(id) });
+        dispatch({ type: 'LOG', kind: 'boot', text: bootUpLine(id) });
       }, i * BOOT_STEP_MS);
       bootTimersRef.current.push(t);
     });
@@ -84,7 +90,7 @@ export default function Deck() {
         dispatch({ type: 'LOG', kind: 'error', text: bootUnreachableLine(id) });
       }
       dispatch({ type: 'BOOT_DONE' });
-      setBootStatus(summaryParts.join(', '));
+      setBootStatus(summary);
     }, r.order.length * BOOT_STEP_MS);
     bootTimersRef.current.push(tail);
   }, [bootSeq, clearBootTimers]);
@@ -135,9 +141,10 @@ export default function Deck() {
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Terminal arch={arch} log={state.log} history={state.history} onRun={runCommand} />
       <Diagram arch={arch} state={state} dispatch={dispatch} onRun={runCommand} />
-      {/* Single batched boot announcement - updated once per boot so the live
-          region is never flooded line-by-line. <output> has an implicit
-          role=status / aria-live=polite. */}
+      {/* Single batched boot announcement - the per-step `boot:` up-lines render
+          aria-hidden inside the Terminal log, so this <output> (implicit
+          role=status / aria-live=polite) is the only polite boot announcement
+          and the live region is never flooded line-by-line. */}
       <output className="sr-only">{bootStatus}</output>
     </div>
   );

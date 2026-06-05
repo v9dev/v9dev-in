@@ -19,6 +19,10 @@ const LINE_CLASS: Record<LogKind, string> = {
   output: 'text-text',
   error: 'text-fuchsia',
   system: 'text-muted',
+  // Machine-paced boot output - same look as `output`, but rendered aria-hidden
+  // below so the rapid burst is excluded from the live region (the batched
+  // <output> summary in Deck is the single announcement).
+  boot: 'text-text',
 };
 
 /** Longest common prefix of a list of strings. */
@@ -112,6 +116,10 @@ export default function Terminal({ arch, log, history, onRun }: Props) {
         {log.map((line) => (
           <div
             key={line.id}
+            // `boot` lines are visible scroll content but excluded from this
+            // live region's announcement (the burst would otherwise flood it);
+            // the batched <output> summary in Deck announces the boot result.
+            aria-hidden={line.kind === 'boot' ? true : undefined}
             className={cn('whitespace-pre-wrap break-words', LINE_CLASS[line.kind])}
           >
             {line.kind === 'input' ? <span className="text-lime/70">$ </span> : null}
