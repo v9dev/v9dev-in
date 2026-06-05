@@ -105,3 +105,37 @@ export function bootOrder(arch: Architecture, edges: ArchEdge[]): BootResult {
   }
   return { order, up: [...order], unreachable: ids.filter((id) => !seen.has(id)) };
 }
+
+export interface Progress {
+  satisfied: number;
+  total: number;
+  pct: number;
+  missing: ArchEdge[];
+  extra: ArchEdge[];
+}
+
+export function objectiveProgress(arch: Architecture, edges: ArchEdge[]): Progress {
+  const req = arch.edges;
+  const have = new Set(edges.map((e) => e.id));
+  const reqIds = new Set(req.map((e) => e.id));
+  const missing = req.filter((e) => !have.has(e.id));
+  const satisfied = req.length - missing.length;
+  const extra = edges.filter((e) => !reqIds.has(e.id));
+  const total = req.length;
+  return {
+    satisfied,
+    total,
+    pct: total === 0 ? 100 : Math.round((satisfied / total) * 100),
+    missing,
+    extra,
+  };
+}
+
+export function isComplete(arch: Architecture, edges: ArchEdge[]): boolean {
+  const { satisfied, total } = objectiveProgress(arch, edges);
+  return satisfied === total && bootOrder(arch, edges).unreachable.length === 0;
+}
+
+export function nextHint(arch: Architecture, edges: ArchEdge[]): ArchEdge | null {
+  return objectiveProgress(arch, edges).missing[0] ?? null;
+}

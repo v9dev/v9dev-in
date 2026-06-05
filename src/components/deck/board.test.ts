@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { architectureBySlug } from '../../content/architectures';
-import { bootOrder, canConnect, layout, wirePath } from './board';
+import {
+  bootOrder,
+  canConnect,
+  isComplete,
+  layout,
+  nextHint,
+  objectiveProgress,
+  wirePath,
+} from './board';
 
 const arch = architectureBySlug['stalwart-mail'];
 
@@ -54,5 +62,66 @@ describe('board', () => {
     const edges = arch.edges.filter((e) => e.id !== 'stalwart->sqlite');
     const r = bootOrder(arch, edges);
     expect(r.unreachable).toContain('sqlite');
+  });
+});
+
+describe('objectiveProgress', () => {
+  it('reports 0% with no edges', () => {
+    const p = objectiveProgress(arch, []);
+    expect(p.satisfied).toBe(0);
+    expect(p.total).toBe(arch.edges.length);
+    expect(p.pct).toBe(0);
+    expect(p.missing).toHaveLength(arch.edges.length);
+    expect(p.extra).toEqual([]);
+  });
+
+  it('reports partial progress with some required edges present', () => {
+    const some = arch.edges.slice(0, 2);
+    const p = objectiveProgress(arch, some);
+    expect(p.satisfied).toBe(2);
+    expect(p.total).toBe(arch.edges.length);
+    expect(p.pct).toBe(Math.round((2 / arch.edges.length) * 100));
+    expect(p.missing).toHaveLength(arch.edges.length - 2);
+    expect(p.missing.map((e) => e.id)).not.toContain(some[0].id);
+    expect(p.extra).toEqual([]);
+  });
+
+  it('reports 100% when every required edge is present', () => {
+    const p = objectiveProgress(arch, arch.edges);
+    expect(p.satisfied).toBe(arch.edges.length);
+    expect(p.pct).toBe(100);
+    expect(p.missing).toEqual([]);
+    expect(p.extra).toEqual([]);
+  });
+
+  it('lists edges not in the reference topology as extra', () => {
+    const bogus = { id: 'nginx->internet', from: 'nginx', to: 'internet', required: false };
+    const p = objectiveProgress(arch, [...arch.edges, bogus]);
+    expect(p.satisfied).toBe(arch.edges.length);
+    expect(p.extra).toHaveLength(1);
+    expect(p.extra[0].id).toBe('nginx->internet');
+  });
+});
+
+describe('isComplete', () => {
+  it('is false when required edges are missing', () => {
+    expect(isComplete(arch, [])).toBe(false);
+    expect(isComplete(arch, arch.edges.slice(0, 3))).toBe(false);
+  });
+
+  it('is true when all required edges are present and every node is reachable', () => {
+    expect(isComplete(arch, arch.edges)).toBe(true);
+  });
+});
+
+describe('nextHint', () => {
+  it('returns a missing required edge while incomplete', () => {
+    const hint = nextHint(arch, []);
+    expect(hint).not.toBeNull();
+    expect(arch.edges.map((e) => e.id)).toContain(hint?.id);
+  });
+
+  it('returns null once complete', () => {
+    expect(nextHint(arch, arch.edges)).toBeNull();
   });
 });
