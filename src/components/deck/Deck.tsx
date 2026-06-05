@@ -34,18 +34,20 @@ export default function Deck() {
     bootTimersRef.current = [];
   }, []);
 
-  // Boot effect: run when state.boot.running transitions false -> true. Computes
-  // the dependency order from the CURRENT edges, then either (reduced motion)
-  // batches every status line + sets nodes up in one synchronous flush, or
-  // (default) steps through the order one node per BOOT_STEP_MS tick. Either way
-  // a single batched bootStatus drives the dedicated live region.
-  const running = state.boot.running;
-  const edges = state.edges;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed off the boot.running edge; reads current edges intentionally at trigger time.
+  // Boot effect: run on every BOOT_START. The effect is keyed off the monotonic
+  // `bootSeq` token (not the `running` boolean) so re-typing `boot` mid-animation
+  // still re-runs the effect, clears the prior run's in-flight timers, and starts
+  // fresh - otherwise stale timers from the previous run would repopulate `up`.
+  // Computes the dependency order from the CURRENT edges, then either (reduced
+  // motion) batches every status line + sets nodes up in one synchronous flush,
+  // or (default) steps through the order one node per BOOT_STEP_MS tick. Either
+  // way a single batched bootStatus drives the dedicated live region.
+  const bootSeq = state.bootSeq;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed off the bootSeq token; reads current boot.running + edges intentionally at trigger time.
   useEffect(() => {
-    if (!running) return;
+    if (!state.boot.running) return;
     clearBootTimers();
-    const r = bootOrder(arch, edges);
+    const r = bootOrder(arch, state.edges);
     const summaryParts = [
       `boot complete - ${r.up.length} up`,
       ...(r.unreachable.length ? [`${r.unreachable.length} unreachable`] : []),
@@ -85,7 +87,7 @@ export default function Deck() {
       setBootStatus(summaryParts.join(', '));
     }, r.order.length * BOOT_STEP_MS);
     bootTimersRef.current.push(tail);
-  }, [running, clearBootTimers]);
+  }, [bootSeq, clearBootTimers]);
 
   // Cancel any in-flight boot timers on unmount.
   useEffect(() => clearBootTimers, [clearBootTimers]);

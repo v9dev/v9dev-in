@@ -18,6 +18,10 @@ export interface DeckState {
   selectedNodeId: string | null;
   armedFrom: string | null;
   boot: { running: boolean; up: string[]; unreachable: string[] };
+  // Monotonic boot token: incremented on every BOOT_START so the boot effect
+  // re-runs (and clears prior in-flight timers) even when a boot is requested
+  // while one is already running.
+  bootSeq: number;
   log: LogLine[];
   history: string[];
   seq: number;
@@ -48,6 +52,7 @@ export function initDeckState(arch: Architecture): DeckState {
     selectedNodeId: null,
     armedFrom: null,
     boot: { running: false, up: [], unreachable: [] },
+    bootSeq: 0,
     log: [{ id: 0, kind: 'system', text: `loaded ${arch.title} - type 'help'` }],
     history: [],
     seq: 1,
@@ -92,7 +97,11 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
     case 'SELECT_NODE':
       return { ...state, selectedNodeId: action.id };
     case 'BOOT_START':
-      return { ...state, boot: { running: true, up: [], unreachable: [] } };
+      return {
+        ...state,
+        boot: { running: true, up: [], unreachable: [] },
+        bootSeq: state.bootSeq + 1,
+      };
     case 'BOOT_STEP':
       return { ...state, boot: { running: true, up: action.up, unreachable: action.unreachable } };
     case 'BOOT_DONE':
