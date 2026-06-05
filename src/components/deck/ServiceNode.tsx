@@ -13,6 +13,8 @@ interface Props {
   candidate?: boolean;
   /** Whether wiring is in progress at all (something is armed). */
   wiring?: boolean;
+  /** Whether this in-port is the current drag-to-wire snap target. */
+  snapTarget?: boolean;
   /** Disable transitions for the ring/scale affordance (reduced motion). */
   reducedMotion?: boolean;
   /** Activate the `out` port: arms this node as a wiring source. */
@@ -21,6 +23,10 @@ interface Props {
   onPortIn?: (id: string) => void;
   /** Open the node detail drawer (Group E). */
   onSelect?: (id: string) => void;
+  /** Begin a pointer drag-to-wire session from this node's out port. */
+  onWireStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
+  /** Begin a pointer drag to reposition this node's card. */
+  onNodeDragStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
 }
 
 const NODE_WIDTH = 132;
@@ -32,10 +38,13 @@ export default function ServiceNode({
   armed,
   candidate,
   wiring,
+  snapTarget,
   reducedMotion,
   onPortOut,
   onPortIn,
   onSelect,
+  onWireStart,
+  onNodeDragStart,
 }: Props) {
   const accent = skillsById[node.skillId ?? '']?.brand ?? node.accent ?? 'var(--color-lime)';
   const iconPath = node.skillId ? getIconPath(node.skillId) : undefined;
@@ -44,7 +53,8 @@ export default function ServiceNode({
 
   return (
     <div
-      className="absolute -translate-x-1/2 -translate-y-1/2"
+      data-node-id={node.id}
+      className="absolute -translate-x-1/2 -translate-y-1/2 will-change-transform"
       style={{ left: x, top: y, width: NODE_WIDTH }}
     >
       {/* In port (left) */}
@@ -56,7 +66,8 @@ export default function ServiceNode({
         className={cn(
           'absolute left-0 top-1/2 z-10 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border bg-canvas hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
           transition,
-          candidate ? 'scale-125 border-lime ring-2 ring-lime' : 'border-line',
+          candidate || snapTarget ? 'scale-125 border-lime ring-2 ring-lime' : 'border-line',
+          snapTarget && 'scale-150',
         )}
       />
 
@@ -66,8 +77,9 @@ export default function ServiceNode({
         aria-label={`wire out from ${node.label}`}
         data-cursor-label="wire out"
         onClick={() => onPortOut?.(node.id)}
+        onPointerDown={(e) => onWireStart?.(node.id, e)}
         className={cn(
-          'absolute right-0 top-1/2 z-10 size-4 translate-x-1/2 -translate-y-1/2 rounded-full border bg-canvas hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+          'absolute right-0 top-1/2 z-10 size-4 translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border bg-canvas hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
           transition,
           armed ? 'scale-125 border-lime ring-2 ring-lime' : 'border-line',
         )}
@@ -76,9 +88,10 @@ export default function ServiceNode({
       <button
         type="button"
         onClick={() => onSelect?.(node.id)}
+        onPointerDown={(e) => onNodeDragStart?.(node.id, e)}
         data-cursor-label={node.label.toLowerCase()}
         className={cn(
-          'group flex w-full flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
+          'group flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
           reducedMotion ? '' : 'transition-colors',
         )}
         style={{

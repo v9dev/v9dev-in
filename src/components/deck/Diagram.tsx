@@ -5,7 +5,7 @@ import ServiceNode from './ServiceNode';
 import { canConnect, layout, portAnchor, wirePath } from './board';
 import type { PlacedNode } from './board';
 import type { Command } from './commands';
-import type { DeckAction, DeckState } from './state';
+import type { DeckAction, DeckState, Pos } from './state';
 
 interface Props {
   arch: Architecture;
@@ -14,8 +14,28 @@ interface Props {
   onRun: (cmd: Command) => void;
 }
 
+// Pointer must move this many px before a node-body press becomes a reposition
+// drag (so a plain click still selects/opens detail rather than nudging).
+const DRAG_THRESHOLD = 4;
+// Snap radius (px) around an in-port that counts as a drag-to-wire target.
+const SNAP_RADIUS = 48;
+
+type DragSession =
+  | { kind: 'wire'; nodeId: string; pointerId: number }
+  | {
+      kind: 'node';
+      nodeId: string;
+      pointerId: number;
+      startX: number;
+      startY: number;
+      originX: number;
+      originY: number;
+      moved: boolean;
+    };
+
 export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const ghostRef = useRef<SVGPathElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
   const [reduced, setReduced] = useState(false);
 
@@ -56,6 +76,196 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     }
     return ids;
   }, [arch, armedFrom]);
+
+  // ── Drag session (local, dispatch only on pointerup) ──────────────────────
+  // All per-frame work happens inside an rAF loop that runs ONLY while a drag is
+  // active; nothing here dispatches to the reducer until pointerup. Live pointer
+  // position lives in a ref so pointermove never re-renders the diagram.
+  const dragRef = useRef<DragSession | null>(null);
+  const pointerRef = useRef<Pos>({ x: 0, y: 0 });
+  const rafRef = useRef<number | null>(null);
+  const placedRef = useRef<Map<string, PlacedNode>>(placedById);
+  placedRef.current = placedById;
+
+  // `wireDragging` toggles the ghost <path>; `snapTargetId` highlights the
+  // nearest valid in-port. Both update at most when their value changes (not
+  // per frame), so the rest of the diagram stays still during a drag.
+  const [wireDragging, setWireDragging] = useState(false);
+  const [snapTargetId, setSnapTargetId] = useState<string | null>(null);
+  const snapTargetRef = useRef<string | null>(null);
+
+  const toLocal = useCallback((clientX: number, clientY: number): Pos => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+  }, []);
+
+  // Nearest valid in-port to a local point, within SNAP_RADIUS, given the armed
+  // source. Returns null when nothing is close enough or valid.
+  const nearestTarget = useCallback(
+    (sourceId: string, point: Pos): string | null => {
+      let best: string | null = null;
+      let bestDist = SNAP_RADIUS;
+      for (const p of placedRef.current.values()) {
+        if (p.node.id === sourceId) continue;
+        if (!canConnect(arch, sourceId, p.node.id).ok) continue;
+        const anchor = portAnchor(p, 'in');
+        const dist = Math.hypot(anchor.x - point.x, anchor.y - point.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = p.node.id;
+        }
+      }
+      return best;
+    },
+    [arch],
+  );
+
+  const stopRaf = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  // The single drag frame loop. Re-arms itself while a session is live.
+  const frame = useCallback(() => {
+    const session = dragRef.current;
+    if (!session) {
+      rafRef.current = null;
+      return;
+    }
+    const point = pointerRef.current;
+
+    if (session.kind === 'wire') {
+      const source = placedRef.current.get(session.nodeId);
+      if (source) {
+        const target = nearestTarget(session.nodeId, point);
+        if (target !== snapTargetRef.current) {
+          snapTargetRef.current = target;
+          setSnapTargetId(target);
+        }
+        const snapped = target ? placedRef.current.get(target) : undefined;
+        const end = snapped ? portAnchor(snapped, 'in') : point;
+        ghostRef.current?.setAttribute('d', wirePath(portAnchor(source, 'out'), end));
+      }
+    } else {
+      // Node reposition: write the transform offset straight to the card so the
+      // React tree does not re-render per frame.
+      const dx = point.x - session.startX;
+      const dy = point.y - session.startY;
+      if (!session.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) session.moved = true;
+      const card = canvasRef.current?.querySelector<HTMLElement>(
+        `[data-node-id="${session.nodeId}"]`,
+      );
+      if (card) card.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+    }
+
+    rafRef.current = requestAnimationFrame(frame);
+  }, [nearestTarget]);
+
+  const endDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      const session = dragRef.current;
+      dragRef.current = null;
+      stopRaf();
+      if (!session) return;
+      const point = toLocal(clientX, clientY);
+
+      if (session.kind === 'wire') {
+        const target = nearestTarget(session.nodeId, point);
+        setWireDragging(false);
+        setSnapTargetId(null);
+        snapTargetRef.current = null;
+        if (target) {
+          // Same path as a typed `connect` so validity, the LINK/error lines,
+          // and history all match the terminal exactly.
+          onRun({
+            kind: 'action',
+            action: { type: 'CONNECT', from: session.nodeId, to: target },
+            echo: `connect ${session.nodeId} ${target}`,
+          });
+        }
+      } else {
+        const card = canvasRef.current?.querySelector<HTMLElement>(
+          `[data-node-id="${session.nodeId}"]`,
+        );
+        // Drop the inline transform; the reducer's new left/top takes over.
+        if (card) card.style.transform = '';
+        if (session.moved) {
+          const dx = point.x - session.startX;
+          const dy = point.y - session.startY;
+          dispatch({
+            type: 'MOVE_NODE',
+            id: session.nodeId,
+            pos: { x: session.originX + dx, y: session.originY + dy },
+          });
+        }
+      }
+    },
+    [dispatch, nearestTarget, onRun, stopRaf, toLocal],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current || e.pointerId !== dragRef.current.pointerId) return;
+      pointerRef.current = toLocal(e.clientX, e.clientY);
+    },
+    [toLocal],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current || e.pointerId !== dragRef.current.pointerId) return;
+      endDrag(e.clientX, e.clientY);
+    },
+    [endDrag],
+  );
+
+  // Begin a drag-to-wire session from an out port (pointer capture on the
+  // canvas so move/up keep flowing even off the small port hit target).
+  const handleWireStart = useCallback(
+    (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      dragRef.current = { kind: 'wire', nodeId: id, pointerId: e.pointerId };
+      pointerRef.current = toLocal(e.clientX, e.clientY);
+      snapTargetRef.current = null;
+      setSnapTargetId(null);
+      setWireDragging(true);
+      stopRaf();
+      rafRef.current = requestAnimationFrame(frame);
+    },
+    [frame, stopRaf, toLocal],
+  );
+
+  // Begin a node reposition drag from the card body. A plain click (no movement
+  // past DRAG_THRESHOLD) leaves selection/onSelect untouched.
+  const handleNodeDragStart = useCallback(
+    (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      const source = placedRef.current.get(id);
+      if (!source) return;
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      const start = toLocal(e.clientX, e.clientY);
+      dragRef.current = {
+        kind: 'node',
+        nodeId: id,
+        pointerId: e.pointerId,
+        startX: start.x,
+        startY: start.y,
+        originX: source.x,
+        originY: source.y,
+        moved: false,
+      };
+      pointerRef.current = start;
+      stopRaf();
+      rafRef.current = requestAnimationFrame(frame);
+    },
+    [frame, stopRaf, toLocal],
+  );
+
+  // Cancel any in-flight rAF on unmount.
+  useEffect(() => stopRaf, [stopRaf]);
 
   const disarm = useCallback(() => {
     if (!state.armedFrom) return;
@@ -134,8 +344,11 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
       data-cursor="drag"
       data-cursor-label="wire"
       onPointerDown={handleCanvasPointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onKeyDown={handleCanvasKeyDown}
-      className="relative h-[clamp(22rem,60vh,40rem)] overflow-hidden rounded-2xl border border-line bg-canvas/60"
+      className="relative h-[clamp(22rem,60vh,40rem)] touch-none overflow-hidden rounded-2xl border border-line bg-canvas/60"
     >
       <svg
         className="absolute inset-0 h-full w-full"
@@ -173,6 +386,20 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
               />
             );
           })}
+        {/* Drag-to-wire ghost path: a single element, mutated directly each
+            frame via ghostRef (never re-rendered while dragging). */}
+        {wireDragging && (
+          <path
+            ref={ghostRef}
+            d=""
+            fill="none"
+            stroke="var(--color-lime)"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeDasharray="4 4"
+            opacity={0.85}
+          />
+        )}
       </svg>
 
       {ready &&
@@ -185,9 +412,12 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             armed={armedFrom === p.node.id}
             candidate={candidates.has(p.node.id)}
             wiring={armedFrom != null}
+            snapTarget={snapTargetId === p.node.id}
             reducedMotion={reduced}
             onPortOut={handlePortOut}
             onPortIn={handlePortIn}
+            onWireStart={handleWireStart}
+            onNodeDragStart={handleNodeDragStart}
           />
         ))}
     </div>
