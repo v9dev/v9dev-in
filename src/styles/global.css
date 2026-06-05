@@ -184,6 +184,22 @@
     animation: heading-shimmer 6.5s linear infinite;
   }
 
+  /* ── Deck data-flow - dashed overlay drifting along a live wire ──
+     The one place timing is encoded directly in CSS (a keyframe cannot
+     import motion.ts). Duration lives in the single named token below.
+     The reduced-motion block above forces animation-duration to 0.001ms,
+     so .wire-flow is neutralized (it keeps the static dashed stroke). */
+  @keyframes wire-flow {
+    to {
+      stroke-dashoffset: -16;
+    }
+  }
+  .wire-flow {
+    --wire-flow-duration: 900ms;
+    stroke-dasharray: 4 4;
+    animation: wire-flow var(--wire-flow-duration) linear infinite;
+  }
+
   /* ── Section label dash - used for "01 · Manifesto" markers ─── */
   .section-label {
     display: inline-flex;

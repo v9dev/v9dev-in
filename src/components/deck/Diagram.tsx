@@ -434,12 +434,18 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
         <title>architecture wiring</title>
         <defs>
           <linearGradient id="deck-wire" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#3AE0FF" stopOpacity="0.85" />
-            <stop offset="50%" stopColor="#B8FF3A" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#FF3A8C" stopOpacity="0.85" />
+            <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity="0.85" />
+            <stop offset="50%" stopColor="var(--color-lime)" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="var(--color-fuchsia)" stopOpacity="0.85" />
           </linearGradient>
           <filter id="deck-wire-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#B8FF3A" floodOpacity="0.35" />
+            <feDropShadow
+              dx="0"
+              dy="0"
+              stdDeviation="3"
+              floodColor="var(--color-lime)"
+              floodOpacity="0.35"
+            />
           </filter>
         </defs>
         {ready &&
@@ -449,15 +455,28 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             if (!from || !to) return null;
             const d = wirePath(portAnchor(from, 'out'), portAnchor(to, 'in'));
             return (
-              <path
-                key={edge.id}
-                d={d}
-                fill="none"
-                stroke="url(#deck-wire)"
-                strokeWidth={1.75}
-                strokeLinecap="round"
-                filter="url(#deck-wire-glow)"
-              />
+              <g key={edge.id}>
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="url(#deck-wire)"
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  filter="url(#deck-wire-glow)"
+                />
+                {/* Live data-flow: a dashed overlay drifting along the wire. The
+                    .wire-flow keyframe is neutralized under prefers-reduced-motion
+                    by the global CSS rule, leaving a static dashed stroke. */}
+                <path
+                  className="wire-flow"
+                  d={d}
+                  fill="none"
+                  stroke="var(--color-lime)"
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  opacity={0.45}
+                />
+              </g>
             );
           })}
         {/* Drag-to-wire ghost path: a single element, mutated directly each
