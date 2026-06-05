@@ -2,7 +2,7 @@ import type { Architecture } from '@content/architectures';
 import { prefersReducedMotion } from '@lib/motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ServiceNode from './ServiceNode';
-import { canConnect, layout, portAnchor, wirePath } from './board';
+import { canConnect, layout, onlineNodes, portAnchor, wirePath } from './board';
 import type { PlacedNode } from './board';
 import type { Command } from './commands';
 import type { DeckAction, DeckState, Pos } from './state';
@@ -77,6 +77,14 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   // "up" pulse and the red "unreachable" outline on each ServiceNode.
   const bootUp = useMemo(() => new Set(state.boot.up), [state.boot.up]);
   const bootUnreachable = useMemo(() => new Set(state.boot.unreachable), [state.boot.unreachable]);
+
+  // Online/offline set: a node lights up once all of its required inbound edges
+  // are wired (sources are online from the start). Only live while the scenario
+  // is playing - at the menu every node reads offline (empty set). Pure derive.
+  const online = useMemo(
+    () => (state.phase === 'playing' ? onlineNodes(arch, state.edges) : new Set<string>()),
+    [arch, state.edges, state.phase],
+  );
 
   // The set of valid target node ids while a source is armed (drives the
   // candidate ring/scale affordance on the IN ports).
@@ -506,6 +514,7 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             candidate={candidates.has(p.node.id)}
             wiring={armedFrom != null}
             snapTarget={snapTargetId === p.node.id}
+            online={online.has(p.node.id)}
             bootUp={bootUp.has(p.node.id)}
             bootUnreachable={bootUnreachable.has(p.node.id)}
             reducedMotion={reduced}

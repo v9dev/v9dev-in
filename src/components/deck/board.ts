@@ -139,3 +139,19 @@ export function isComplete(arch: Architecture, edges: ArchEdge[]): boolean {
 export function nextHint(arch: Architecture, edges: ArchEdge[]): ArchEdge | null {
   return objectiveProgress(arch, edges).missing[0] ?? null;
 }
+
+// The set of node ids that are "online" given the currently wired `edges`. A
+// node is online once ALL of its REQUIRED inbound edges (from the reference
+// topology `arch.edges` where `to === node.id`) are present. A source node (no
+// required inbound) has nothing to wait on, so it is online from the start - the
+// React island only treats this set as live while the scenario is `playing`.
+// Pure: depends solely on `arch` + `edges`.
+export function onlineNodes(arch: Architecture, edges: ArchEdge[]): Set<string> {
+  const have = new Set(edges.map((e) => e.id));
+  const online = new Set<string>();
+  for (const node of arch.nodes) {
+    const requiredIn = arch.edges.filter((e) => e.to === node.id && e.required);
+    if (requiredIn.every((e) => have.has(e.id))) online.add(node.id);
+  }
+  return online;
+}

@@ -7,6 +7,7 @@ import {
   layout,
   nextHint,
   objectiveProgress,
+  onlineNodes,
   wirePath,
 } from './board';
 
@@ -123,5 +124,43 @@ describe('nextHint', () => {
 
   it('returns null once complete', () => {
     expect(nextHint(arch, arch.edges)).toBeNull();
+  });
+});
+
+describe('onlineNodes', () => {
+  it('lights source nodes (no required inbound) even with no edges', () => {
+    const online = onlineNodes(arch, []);
+    expect(online.has('internet')).toBe(true);
+    expect(online.has('mailclient')).toBe(true);
+    // a node with required inbound stays offline until wired
+    expect(online.has('nginx')).toBe(false);
+    expect(online.has('stalwart')).toBe(false);
+    expect(online.has('sqlite')).toBe(false);
+  });
+
+  it('lights a node only once ALL its required inbound edges are present', () => {
+    // nginx needs only internet->nginx
+    const withNginx = onlineNodes(arch, [
+      { id: 'internet->nginx', from: 'internet', to: 'nginx', required: true },
+    ]);
+    expect(withNginx.has('nginx')).toBe(true);
+    // stalwart needs internet/mailclient/nginx -> stalwart; one is not enough
+    const partial = onlineNodes(arch, [
+      { id: 'internet->stalwart', from: 'internet', to: 'stalwart', required: true },
+    ]);
+    expect(partial.has('stalwart')).toBe(false);
+  });
+
+  it('lights every node when the full reference topology is wired', () => {
+    const online = onlineNodes(arch, arch.edges);
+    for (const n of arch.nodes) expect(online.has(n.id)).toBe(true);
+  });
+
+  it('ignores extra (non-required) edges - they do not light a downstream node', () => {
+    // an unrelated edge into sqlite is not the required stalwart->sqlite
+    const online = onlineNodes(arch, [
+      { id: 'nginx->sqlite', from: 'nginx', to: 'sqlite', required: false },
+    ]);
+    expect(online.has('sqlite')).toBe(false);
   });
 });

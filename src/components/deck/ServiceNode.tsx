@@ -17,6 +17,12 @@ interface Props {
   wiring?: boolean;
   /** Whether this in-port is the current drag-to-wire snap target. */
   snapTarget?: boolean;
+  /**
+   * Whether this node is online: all of its required inbound edges are wired (a
+   * source node is online once the scenario is playing). Online nodes light up
+   * with the brand accent + a soft glow; offline nodes are dimmed/muted.
+   */
+  online?: boolean;
   /** Whether this node is "up" after a boot (green accent + one-shot pulse). */
   bootUp?: boolean;
   /** Whether this node is unreachable after a boot (red outline). */
@@ -52,6 +58,7 @@ export default function ServiceNode({
   candidate,
   wiring,
   snapTarget,
+  online,
   bootUp,
   bootUnreachable,
   reducedMotion,
@@ -76,6 +83,23 @@ export default function ServiceNode({
     : bootUp
       ? 'var(--color-lime)'
       : undefined;
+
+  // Online/offline border + glow, applied inline (same reasoning as bootBorder:
+  // keep it instant under reduced motion). Online nodes take the brand accent
+  // with a soft accent glow; the boot border and the armed/candidate accent both
+  // outrank it. A live wiring drag keeps its own dim, so offline muting only
+  // applies when nothing is being wired.
+  const borderColor = bootBorder ?? (armed || candidate || online ? accent : undefined);
+  // Base card drop-shadow (mirrors the Tailwind shadow class) so the inline
+  // boxShadow can layer the online glow on top without dropping it.
+  const baseShadow = '0 8px 24px -12px rgba(0,0,0,0.6)';
+  const cardGlow =
+    online && !bootBorder && !armed && !candidate
+      ? `${baseShadow}, 0 0 18px -4px ${accent}55`
+      : undefined;
+  // Offline nodes read muted; sources/satisfied nodes are full strength. The
+  // wiring dim (non-target nodes while something is armed) still wins.
+  const offlineDim = wiring && !armed && !candidate ? 0.55 : online ? undefined : 0.5;
 
   return (
     <div
@@ -132,8 +156,9 @@ export default function ServiceNode({
           reducedMotion ? '' : 'transition-colors',
         )}
         style={{
-          borderColor: bootBorder ?? (armed || candidate ? accent : undefined),
-          opacity: wiring && !armed && !candidate ? 0.55 : undefined,
+          borderColor,
+          opacity: offlineDim,
+          boxShadow: cardGlow,
         }}
       >
         {/* One-shot "up" pulse ring. Gated entirely off under reduced motion
