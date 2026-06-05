@@ -1,0 +1,19 @@
+---
+import Base from '@/layouts/Base.astro';
+import Nav from '@components/astro/Nav.astro';
+import Deck from '@components/deck/Deck';
+---
+
+<Base
+  title="v9 deck - operate the architecture"
+  description="An interactive command deck: wire, boot, and explore the systems JP builds."
+>
+  <Nav />
+  <main id="main" class="container-page py-[var(--section-pad)]">
+    <div class="section-label mb-6 text-lime/80"><span>// v9 deck</span></div>
+    <h1 class="font-display font-semibold leading-[0.95] text-[clamp(2.25rem,5.5vw,4rem)] mb-8">
+      Operate the architecture
+    </h1>
+    <Deck client:load />
+  </main>
+</Base>

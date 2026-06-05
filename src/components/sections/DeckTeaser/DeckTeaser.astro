@@ -1,0 +1,74 @@
+---
+import MagneticButton from '@components/ui/MagneticButton.tsx';
+
+const diagram = [
+  '  [internet] ──┐',
+  '               ├──▶ [nginx] ──▶ [stalwart] ──▶ [sqlite]',
+  '  [client]  ───┘',
+];
+---
+
+<section
+  id="deck-teaser"
+  data-index="6"
+  class="relative overflow-hidden py-[var(--section-pad)]"
+>
+  <div aria-hidden class="absolute inset-0 -z-10">
+    <div
+      class="absolute -top-24 left-1/2 -translate-x-1/2 size-[36rem] rounded-full blur-3xl opacity-[0.07]"
+      style="background: radial-gradient(closest-side, var(--color-lime), transparent 70%)"
+    >
+    </div>
+  </div>
+
+  <div class="container-page grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+    {/* Left column - pitch */}
+    <div>
+      <div class="section-label mb-4 text-lime/80">
+        <span>06 · Deck</span>
+      </div>
+      <h2 class="font-display font-semibold text-balance leading-[0.95] text-[clamp(2.25rem,5.5vw,4.5rem)]">
+        Operate the
+        <br />
+        <span class="text-lime">architecture.</span>
+      </h2>
+      <p class="mt-6 text-muted text-lg leading-relaxed max-w-md">
+        A live command deck for my real mail server. Wire the services, boot the
+        stack in dependency order, and inspect every node - by command or by hand.
+      </p>
+
+      <div class="mt-10">
+        <MagneticButton
+          client:visible
+          href="/deck"
+          strength={0.3}
+          radius={80}
+          data-cursor-label="launch"
+          className="rounded-full bg-lime px-5 py-2.5 text-sm font-semibold text-canvas hover:bg-lime/90"
+        >
+          launch the deck →
+        </MagneticButton>
+      </div>
+    </div>
+
+    {/* Right column - ASCII mini-diagram */}
+    <div
+      class="rounded-2xl border border-line/80 bg-elevated/70 backdrop-blur-xl p-6 md:p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]"
+    >
+      <div class="flex items-center gap-2 mb-4">
+        <span class="size-2.5 rounded-full bg-fuchsia/70" aria-hidden></span>
+        <span class="size-2.5 rounded-full bg-cyan/70" aria-hidden></span>
+        <span class="size-2.5 rounded-full bg-lime/70" aria-hidden></span>
+        <span class="ml-2 font-mono text-[11px] uppercase tracking-widest text-muted">
+          stalwart-mail
+        </span>
+      </div>
+      <pre
+        class="font-mono text-[11px] sm:text-xs leading-relaxed text-text/80 overflow-x-auto"
+      >{diagram.join('\n')}</pre>
+      <p class="mt-5 font-mono text-[11px] uppercase tracking-widest text-lime/70">
+        $ connect nginx stalwart
+      </p>
+    </div>
+  </div>
+</section>

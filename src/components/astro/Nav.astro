@@ -3,12 +3,16 @@ import MagneticButton from '@components/ui/MagneticButton.tsx';
 import MobileMenu from '@components/ui/MobileMenu.tsx';
 import { socialList, SITE } from '@lib/seo';
 
+// Route-aware section links: smooth-scroll on home, cross-navigate off-home.
+const onHome = Astro.url.pathname === '/';
+const sec = (id: string) => `${onHome ? '#' : '/#'}${id}`;
 const links = [
-  { label: 'Work', href: '#work' },
-  { label: 'Stack', href: '#stack' },
-  { label: 'Services', href: '#services' },
-  { label: 'Notes', href: '#blog' },
-  { label: 'Contact', href: '#contact' },
+  { label: 'Work', href: sec('work') },
+  { label: 'Stack', href: sec('stack') },
+  { label: 'Services', href: sec('services') },
+  { label: 'Deck', href: '/deck' },
+  { label: 'Notes', href: sec('blog') },
+  { label: 'Contact', href: sec('contact') },
 ];
 const socials = socialList.map((s) => ({ label: s.label, href: s.href }));
 ---
@@ -21,7 +25,7 @@ const socials = socialList.map((s) => ({ label: s.label, href: s.href }));
     class="pointer-events-auto flex items-center gap-1 rounded-full border border-line/60 bg-elevated/70 px-2 py-2 backdrop-blur-xl shadow-[0_8px_40px_-12px_rgba(0,0,0,0.4)] max-w-[calc(100vw-1rem)]"
   >
     <a
-      href="#hero"
+      href={sec('hero')}
       class="px-3 py-1.5 text-sm font-medium tracking-tight rounded-full hover:bg-elevated-hi transition-colors flex items-center gap-2"
       data-cursor-label="home"
       aria-label="Back to top"
@@ -53,7 +57,7 @@ const socials = socialList.map((s) => ({ label: s.label, href: s.href }));
 
     <MagneticButton
       client:visible
-      href="#contact"
+      href={sec('contact')}
       strength={0.3}
       radius={70}
       data-cursor-label="hi"
