@@ -1,4 +1,4 @@
-import { type Architecture, architectureBySlug } from '@content/architectures';
+import { type Architecture, architectureBySlug, architectures } from '@content/architectures';
 import { prefersReducedMotion, stagger } from '@lib/motion';
 import {
   type Dispatch,
@@ -11,9 +11,12 @@ import {
 } from 'react';
 import DetailDrawer from './DetailDrawer';
 import Diagram from './Diagram';
+import GameMenu from './GameMenu';
+import Hud from './Hud';
 import Terminal from './Terminal';
+import WinPanel from './WinPanel';
 import { bootOrder, canConnect, isComplete, nextHint, objectiveProgress } from './board';
-import type { Command, Ctx, GameVerb } from './commands';
+import { type Command, type Ctx, type GameVerb, parse } from './commands';
 import { type DeckAction, type DeckState, deckReducer, initDeckState } from './state';
 
 const arch = architectureBySlug['stalwart-mail'];
@@ -233,15 +236,49 @@ export default function Deck() {
 
   // Parse context for the terminal: the live phase + the loaded arch (null at
   // the menu) drive node-id validation, completion, and menu-phase gating.
-  const ctx: Ctx = {
-    phase: state.phase,
-    arch: state.phase === 'menu' ? null : activeArch,
-  };
+  // Memoized so the WinPanel/menu callbacks below can depend on a stable ref.
+  const ctx: Ctx = useMemo(
+    () => ({
+      phase: state.phase,
+      arch: state.phase === 'menu' ? null : activeArch,
+    }),
+    [state.phase, activeArch],
+  );
+
+  // The next scenario after the one just won, for the WinPanel `next` action
+  // (null when the current arch is the last in the list).
+  const nextArch = useMemo(() => {
+    const i = architectures.findIndex((a) => a.slug === activeArch.slug);
+    return i >= 0 ? (architectures[i + 1] ?? null) : null;
+  }, [activeArch.slug]);
+
+  // WinPanel/GameMenu actions flow through the SAME parse + runCommand path as
+  // typed commands so the terminal log and session state stay in sync. `next`
+  // is `play <slug>` for the following scenario; `menu` is the menu verb.
+  const playNext = useCallback(() => {
+    if (nextArch) runCommand(parse(`play ${nextArch.slug}`, ctx));
+  }, [ctx, nextArch, runCommand]);
+  const goMenu = useCallback(() => runCommand(parse('menu', ctx)), [ctx, runCommand]);
 
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Terminal ctx={ctx} log={state.log} history={state.history} onRun={runCommand} />
-      <Diagram arch={activeArch} state={state} dispatch={dispatch} onRun={runCommand} />
+      <div className="flex flex-col gap-4">
+        {state.phase === 'playing' && <Hud arch={activeArch} state={state} />}
+        {state.phase === 'menu' ? (
+          <GameMenu ctx={ctx} onRun={runCommand} />
+        ) : state.phase === 'won' ? (
+          <WinPanel
+            arch={activeArch}
+            state={state}
+            next={nextArch}
+            onNext={playNext}
+            onMenu={goMenu}
+          />
+        ) : (
+          <Diagram arch={activeArch} state={state} dispatch={dispatch} onRun={runCommand} />
+        )}
+      </div>
       <DetailDrawer node={selectedNode} open={state.selectedNodeId != null} onClose={closeDrawer} />
       {/* Single batched boot announcement - the per-step `boot:` up-lines render
           aria-hidden inside the Terminal log, so this <output> (implicit
