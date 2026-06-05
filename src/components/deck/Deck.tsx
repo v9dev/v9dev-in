@@ -1,6 +1,7 @@
 import { architectureBySlug } from '@content/architectures';
 import { prefersReducedMotion, stagger } from '@lib/motion';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import DetailDrawer from './DetailDrawer';
 import Diagram from './Diagram';
 import Terminal from './Terminal';
 import { bootOrder, canConnect } from './board';
@@ -137,10 +138,18 @@ export default function Deck() {
     dispatch(a);
   }, []);
 
+  // Drawer open is derived: the drawer is open whenever a node is selected.
+  const selectedNode = useMemo(
+    () => arch.nodes.find((n) => n.id === state.selectedNodeId) ?? null,
+    [state.selectedNodeId],
+  );
+  const closeDrawer = useCallback(() => dispatch({ type: 'SELECT_NODE', id: null }), []);
+
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <Terminal arch={arch} log={state.log} history={state.history} onRun={runCommand} />
       <Diagram arch={arch} state={state} dispatch={dispatch} onRun={runCommand} />
+      <DetailDrawer node={selectedNode} open={state.selectedNodeId != null} onClose={closeDrawer} />
       {/* Single batched boot announcement - the per-step `boot:` up-lines render
           aria-hidden inside the Terminal log, so this <output> (implicit
           role=status / aria-live=polite) is the only polite boot announcement

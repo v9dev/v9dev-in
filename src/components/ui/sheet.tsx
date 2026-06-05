@@ -1,7 +1,7 @@
-import * as React from 'react';
+import { cn } from '@lib/cn';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { cn } from '@lib/cn';
+import * as React from 'react';
 
 /**
  * shadcn-style Sheet primitives built on Radix Dialog.
@@ -35,8 +35,10 @@ export const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     side?: 'right' | 'left';
+    /** Accessible name for the close control (default: "Close menu"). */
+    closeLabel?: string;
   }
->(({ className, children, side = 'right', ...props }, ref) => (
+>(({ className, children, side = 'right', closeLabel = 'Close menu', ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <DialogPrimitive.Content
@@ -58,7 +60,7 @@ export const SheetContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close
-        aria-label="Close menu"
+        aria-label={closeLabel}
         className="absolute right-4 top-4 inline-flex items-center justify-center size-9 rounded-full text-text hover:bg-elevated-hi transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime"
       >
         <X className="size-5" />

@@ -398,6 +398,17 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [disarm],
   );
 
+  // Clicking (or Enter/Space on) a node body opens its detail drawer. The
+  // click-vs-drag threshold is handled upstream: a reposition that moved past
+  // DRAG_THRESHOLD arms suppressClickRef, so ServiceNode swallows the trailing
+  // synthesized click before this runs (a plain click still selects).
+  const handleSelect = useCallback(
+    (id: string) => {
+      dispatch({ type: 'SELECT_NODE', id });
+    },
+    [dispatch],
+  );
+
   const ready = dims.width > 0 && dims.height > 0;
 
   return (
@@ -481,6 +492,7 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             reducedMotion={reduced}
             onPortOut={handlePortOut}
             onPortIn={handlePortIn}
+            onSelect={handleSelect}
             onWireStart={handleWireStart}
             onNodeDragStart={handleNodeDragStart}
             consumeClickSuppressed={consumeClickSuppressed}
