@@ -133,6 +133,10 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         ...state,
         armedFrom: null,
         moves: state.moves + 1,
+        // Topology changed - a prior boot's up/unreachable flags are now stale, so
+        // clear them (otherwise a node flagged red 'unreachable' keeps its outline
+        // even after you correctly wire it, until the next boot).
+        boot: { running: false, up: [], unreachable: [] },
         edges: [...state.edges, { id, from: action.from, to: action.to, required: false }],
       };
     }
@@ -141,6 +145,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         ...state,
         armedFrom: null,
         moves: state.moves + 1,
+        boot: { running: false, up: [], unreachable: [] },
         edges: state.edges.filter((e) => e.id !== edgeId(action.from, action.to)),
       };
     case 'MOVE_NODE':

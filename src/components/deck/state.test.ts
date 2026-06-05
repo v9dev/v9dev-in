@@ -55,6 +55,21 @@ describe('deckReducer', () => {
     expect(s.moves).toBe(2);
   });
 
+  it('CONNECT/DISCONNECT clear stale boot up/unreachable flags (topology changed)', () => {
+    let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    // simulate a failed boot that flagged a node unreachable
+    s = deckReducer(s, { type: 'BOOT_STEP', up: ['internet'], unreachable: ['sqlite'] });
+    expect(s.boot.unreachable).toContain('sqlite');
+    // wiring (which changes the topology) must clear the stale flags
+    s = deckReducer(s, { type: 'CONNECT', from: 'stalwart', to: 'sqlite' });
+    expect(s.boot.unreachable).toEqual([]);
+    expect(s.boot.up).toEqual([]);
+    // and so must disconnecting
+    s = deckReducer(s, { type: 'BOOT_STEP', up: ['internet'], unreachable: ['sqlite'] });
+    s = deckReducer(s, { type: 'DISCONNECT', from: 'stalwart', to: 'sqlite' });
+    expect(s.boot.unreachable).toEqual([]);
+  });
+
   it('HINT increments hintsUsed', () => {
     let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
     s = deckReducer(s, { type: 'HINT' });
