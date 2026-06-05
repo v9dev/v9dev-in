@@ -15,12 +15,24 @@ export interface LogLine {
   text: string;
 }
 
+// Game session phase: the menu (pick a scenario), live play, or the win screen.
+export type GamePhase = 'menu' | 'playing' | 'won';
+
 export interface DeckState {
   archSlug: string;
   positions: Record<string, Pos>;
   edges: ArchEdge[];
   selectedNodeId: string | null;
   armedFrom: string | null;
+  // Game session layer. `phase` gates the menu/play/win UI; `moves` counts
+  // connect+disconnect actions; `startedAt`/`wonAt` are ms-epoch timestamps
+  // captured in the React island and passed via action `at` (the reducer stays
+  // pure - it never calls Date.now()).
+  phase: GamePhase;
+  moves: number;
+  hintsUsed: number;
+  startedAt: number | null;
+  wonAt: number | null;
   boot: { running: boolean; up: string[]; unreachable: string[] };
   // Monotonic boot token: incremented on every BOOT_START so the boot effect
   // re-runs (and clears prior in-flight timers) even when a boot is requested
@@ -33,7 +45,11 @@ export interface DeckState {
 
 export type DeckAction =
   | { type: 'LOAD'; arch: Architecture }
-  | { type: 'RESET'; arch: Architecture }
+  | { type: 'RESET'; arch: Architecture; at: number }
+  | { type: 'PLAY'; arch: Architecture; at: number }
+  | { type: 'HINT' }
+  | { type: 'WIN'; at: number }
+  | { type: 'MENU' }
   | { type: 'CONNECT'; from: string; to: string }
   | { type: 'DISCONNECT'; from: string; to: string }
   | { type: 'MOVE_NODE'; id: string; pos: Pos }
@@ -48,17 +64,40 @@ export type DeckAction =
 
 const edgeId = (from: string, to: string): string => `${from}->${to}`;
 
+// A fresh session opens at the menu, UNWIRED: the player picks a scenario with
+// `play`, then wires it up themselves. Edges start empty (the arch's reference
+// edges are the win target, not the starting state).
 export function initDeckState(arch: Architecture): DeckState {
   return {
     archSlug: arch.slug,
     positions: {},
-    edges: arch.edges.map((e) => ({ ...e })),
+    edges: [],
     selectedNodeId: null,
     armedFrom: null,
+    phase: 'menu',
+    moves: 0,
+    hintsUsed: 0,
+    startedAt: null,
+    wonAt: null,
     boot: { running: false, up: [], unreachable: [] },
     bootSeq: 0,
-    log: [{ id: 0, kind: 'system', text: `loaded ${arch.title} - type 'help'` }],
+    log: [
+      { id: 0, kind: 'system', text: "v9 deck - type 'ls' to list games, 'help' for commands" },
+    ],
     history: [],
+    seq: 1,
+  };
+}
+
+// Start a live session for `arch` at timestamp `at`: unwired, phase=playing,
+// counters reset, and the objective logged. Used by both PLAY (fresh scenario)
+// and RESET (replay the current scenario). Pure - `at` is captured by the caller.
+function startSession(arch: Architecture, at: number): DeckState {
+  return {
+    ...initDeckState(arch),
+    phase: 'playing',
+    startedAt: at,
+    log: [{ id: 0, kind: 'system', text: `objective: ${arch.objective}` }],
     seq: 1,
   };
 }
@@ -75,14 +114,25 @@ function append(state: DeckState, kind: LogKind, text: string): DeckState {
 export function deckReducer(state: DeckState, action: DeckAction): DeckState {
   switch (action.type) {
     case 'LOAD':
-    case 'RESET':
       return initDeckState(action.arch);
+    case 'PLAY':
+    case 'RESET':
+      // Both start a fresh playing session for the given arch (RESET replays the
+      // current scenario, PLAY loads a new one) - unwired, counters zeroed.
+      return startSession(action.arch, action.at);
+    case 'HINT':
+      return { ...state, hintsUsed: state.hintsUsed + 1 };
+    case 'WIN':
+      return { ...state, phase: 'won', wonAt: action.at };
+    case 'MENU':
+      return { ...state, phase: 'menu' };
     case 'CONNECT': {
       const id = edgeId(action.from, action.to);
       if (state.edges.some((e) => e.id === id)) return { ...state, armedFrom: null };
       return {
         ...state,
         armedFrom: null,
+        moves: state.moves + 1,
         edges: [...state.edges, { id, from: action.from, to: action.to, required: false }],
       };
     }
@@ -90,6 +140,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       return {
         ...state,
         armedFrom: null,
+        moves: state.moves + 1,
         edges: state.edges.filter((e) => e.id !== edgeId(action.from, action.to)),
       };
     case 'MOVE_NODE':

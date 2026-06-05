@@ -47,7 +47,10 @@ export function parse(input: string, arch: Architecture): Command {
     case 'clear':
       return { kind: 'action', action: { type: 'CLEAR' }, echo: 'clear' };
     case 'reset':
-      return { kind: 'action', action: { type: 'RESET', arch }, echo: 'reset' };
+      // `at` is captured here in the browser island (parse runs on a user event),
+      // never in the reducer - the reducer stays pure. G4/G5 route this through
+      // the Deck runner; this keeps the contract typecheck-clean in the interim.
+      return { kind: 'action', action: { type: 'RESET', arch, at: Date.now() }, echo: 'reset' };
     case 'load':
       return { kind: 'action', action: { type: 'LOAD', arch }, echo: `load ${arch.slug}` };
     case 'boot':
