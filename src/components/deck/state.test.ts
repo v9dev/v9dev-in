@@ -84,6 +84,18 @@ describe('deckReducer', () => {
     expect(s.wonAt).toBe(5000);
   });
 
+  it('WIN is ignored unless playing (a late win from the menu no-ops)', () => {
+    // initDeckState opens at the menu; a stray WIN must not flip to won.
+    let s = deckReducer(initDeckState(arch), { type: 'WIN', at: 5000 });
+    expect(s.phase).toBe('menu');
+    expect(s.wonAt).toBeNull();
+    // and once already won, a second WIN does not re-stamp wonAt.
+    s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    s = deckReducer(s, { type: 'WIN', at: 5000 });
+    s = deckReducer(s, { type: 'WIN', at: 9999 });
+    expect(s.wonAt).toBe(5000);
+  });
+
   it('MENU returns to the menu phase', () => {
     let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
     s = deckReducer(s, { type: 'MENU' });

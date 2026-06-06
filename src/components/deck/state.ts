@@ -123,6 +123,10 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
     case 'HINT':
       return { ...state, hintsUsed: state.hintsUsed + 1 };
     case 'WIN':
+      // Only a live playing session can be won. The win is dispatched on a hold
+      // timer after the boot animation, so guard against a late WIN landing once
+      // the player has already left (e.g. typed `menu` during the win hold).
+      if (state.phase !== 'playing') return state;
       return { ...state, phase: 'won', wonAt: action.at };
     case 'MENU':
       return { ...state, phase: 'menu' };

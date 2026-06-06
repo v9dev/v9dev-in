@@ -1,5 +1,5 @@
 import { type Architecture, architectureBySlug, architectures } from '@content/architectures';
-import { prefersReducedMotion, stagger } from '@lib/motion';
+import { durations, prefersReducedMotion, stagger } from '@lib/motion';
 import {
   type Dispatch,
   useCallback,
@@ -24,6 +24,9 @@ const arch = architectureBySlug['stalwart-mail'];
 // Per-node pulse interval for the animated boot, sourced from the shared motion
 // language (never hard-code durations in JS). `stagger.large` is in seconds.
 const BOOT_STEP_MS = stagger.large * 1000;
+// After a winning boot, hold on the fully-lit diagram for one pulse cycle so the
+// fire-up animation is actually seen before the WinPanel replaces the diagram.
+const WIN_HOLD_MS = durations.pulse * 1000;
 
 const bootUpLine = (id: string): string => `boot: ${id} ... up`;
 const bootUnreachableLine = (id: string): string =>
@@ -94,11 +97,11 @@ function runGame(
       return;
     }
     case 'boot': {
-      if (isComplete(activeArch, state.edges)) {
-        dispatch({ type: 'WIN', at: Date.now() });
-      }
       // The boot animation runs as the reward (and as the failure report when
       // the topology is incomplete - unreachable nodes are flagged in the log).
+      // A complete topology wins, but the WIN is dispatched by the boot effect
+      // AFTER the fire-up animation finishes (not here) so the on-diagram pulse
+      // is seen before the WinPanel replaces the diagram.
       dispatch({ type: 'BOOT_START' });
       return;
     }
@@ -160,6 +163,8 @@ export default function Deck() {
       }
       dispatch({ type: 'BOOT_DONE' });
       setBootStatus(summary);
+      // No animation to wait out under reduced motion - win immediately.
+      if (isComplete(activeArch, state.edges)) dispatch({ type: 'WIN', at: Date.now() });
       return;
     }
 
@@ -185,6 +190,19 @@ export default function Deck() {
       setBootStatus(summary);
     }, r.order.length * BOOT_STEP_MS);
     bootTimersRef.current.push(tail);
+
+    // A complete topology wins, but only AFTER the fire-up is seen: hold one
+    // pulse past the last node, then dispatch WIN. Registered up-front in the
+    // same timer list so a reset (bumps bootSeq, re-runs this effect) cancels
+    // it; the reducer also ignores WIN unless still playing, covering a `menu`
+    // typed during the hold.
+    if (isComplete(activeArch, state.edges)) {
+      const win = setTimeout(
+        () => dispatch({ type: 'WIN', at: Date.now() }),
+        r.order.length * BOOT_STEP_MS + WIN_HOLD_MS,
+      );
+      bootTimersRef.current.push(win);
+    }
   }, [bootSeq, clearBootTimers]);
 
   // Cancel any in-flight boot timers on unmount.

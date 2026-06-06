@@ -1,4 +1,4 @@
-import type { Variants, Transition } from 'motion/react';
+import type { Transition, Variants } from 'motion/react';
 
 /**
  * Shared motion language used across every section.
@@ -24,6 +24,14 @@ export const stagger = {
   small: 0.04,
   default: 0.06,
   large: 0.1,
+} as const;
+
+// ── Durations (seconds) ─────────────────────────────────────
+// Named durations so components and timed effects share one source of truth.
+// `pulse` is the one-shot "up" ring fade on a node (see deck ServiceNode); the
+// deck win-hold reuses it to wait out the last pulse before showing the win.
+export const durations = {
+  pulse: 0.7,
 } as const;
 
 // ── Reusable variants ───────────────────────────────────────

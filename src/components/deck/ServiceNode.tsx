@@ -2,7 +2,7 @@ import type { ArchNode } from '@content/architectures';
 import { skillsById } from '@content/skills';
 import { cn } from '@lib/cn';
 import { getIconPath } from '@lib/icons';
-import { easings } from '@lib/motion';
+import { durations, easings } from '@lib/motion';
 import { AnimatePresence, motion } from 'motion/react';
 
 interface Props {
@@ -172,7 +172,7 @@ export default function ServiceNode({
                 className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-lime"
                 initial={{ opacity: 0.9, scale: 1 }}
                 animate={{ opacity: 0, scale: 1.18 }}
-                transition={{ duration: 0.7, ease: easings.outExpo }}
+                transition={{ duration: durations.pulse, ease: easings.outExpo }}
               />
             )}
           </AnimatePresence>
