@@ -20,6 +20,7 @@ export interface ArchNode {
     notes?: string;
   };
   col?: number;
+  decoy?: boolean;
 }
 export interface ArchEdge {
   id: string;
@@ -33,8 +34,9 @@ export interface Architecture {
   title: string;
   subtitle: string;
   objective: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  difficulty: 'easy' | 'medium' | 'hard' | 'expert';
   intro?: string;
+  hints?: string[];
   projectSlug?: string;
   nodes: ArchNode[];
   edges: ArchEdge[];

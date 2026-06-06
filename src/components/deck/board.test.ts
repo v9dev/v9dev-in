@@ -1,11 +1,14 @@
+import type { Architecture } from '@content/architectures';
 import { describe, expect, it } from 'vitest';
 import { architectureBySlug } from '../../content/architectures';
 import {
   bootOrder,
   canConnect,
+  entryCards,
+  hintFor,
   isComplete,
+  judgeWire,
   layout,
-  nextHint,
   objectiveProgress,
   onlineNodes,
   wirePath,
@@ -115,18 +118,6 @@ describe('isComplete', () => {
   });
 });
 
-describe('nextHint', () => {
-  it('returns a missing required edge while incomplete', () => {
-    const hint = nextHint(arch, []);
-    expect(hint).not.toBeNull();
-    expect(arch.edges.map((e) => e.id)).toContain(hint?.id);
-  });
-
-  it('returns null once complete', () => {
-    expect(nextHint(arch, arch.edges)).toBeNull();
-  });
-});
-
 describe('onlineNodes', () => {
   it('lights source nodes (no required inbound) even with no edges', () => {
     const online = onlineNodes(arch, []);
@@ -162,5 +153,111 @@ describe('onlineNodes', () => {
       { id: 'nginx->sqlite', from: 'nginx', to: 'sqlite', required: false },
     ]);
     expect(online.has('sqlite')).toBe(false);
+  });
+});
+
+const fix: Architecture = {
+  slug: 'fix',
+  title: 'Fix',
+  subtitle: '',
+  objective: 'test',
+  difficulty: 'easy',
+  hints: ['principle one', 'principle two'],
+  nodes: [
+    { id: 'net', label: 'Net', kind: 'external', hld: '' },
+    { id: 'web', label: 'Web', kind: 'edge', hld: '' },
+    { id: 'app', label: 'App', kind: 'service', hld: '' },
+    { id: 'db', label: 'DB', kind: 'datastore', hld: '' },
+    { id: 'fake', label: 'Fake', kind: 'service', hld: '', decoy: true },
+  ],
+  edges: [
+    { id: 'net->web', from: 'net', to: 'web', required: true },
+    { id: 'web->app', from: 'web', to: 'app', required: true },
+    { id: 'app->db', from: 'app', to: 'db', required: true },
+  ],
+};
+const ALL = fix.nodes.map((n) => n.id);
+const REAL = fix.nodes.filter((n) => !n.decoy).map((n) => n.id);
+
+describe('entryCards', () => {
+  it('returns non-decoy sources (external/client) only', () => {
+    expect(entryCards(fix)).toEqual(['net']);
+  });
+});
+
+describe('judgeWire', () => {
+  it('accepts a required edge between placed nodes', () => {
+    expect(judgeWire(fix, REAL, 'net', 'web')).toEqual({ ok: true });
+  });
+  it('rejects a self-wire without penalty', () => {
+    expect(judgeWire(fix, REAL, 'web', 'web')).toMatchObject({ ok: false, penalize: false });
+  });
+  it('rejects when a card is not placed, without penalty', () => {
+    expect(judgeWire(fix, ['net'], 'net', 'web')).toMatchObject({ ok: false, penalize: false });
+  });
+  it('penalizes a datastore-initiated wire with a reason', () => {
+    const v = judgeWire(fix, REAL, 'db', 'app');
+    expect(v.ok).toBe(false);
+    expect(v).toMatchObject({ penalize: true });
+    expect((v as { reason: string }).reason).toMatch(/datastore/i);
+  });
+  it('penalizes exposing a datastore to a source', () => {
+    const v = judgeWire(fix, REAL, 'net', 'db');
+    expect(v).toMatchObject({ ok: false, penalize: true });
+    expect((v as { reason: string }).reason).toMatch(/expose/i);
+  });
+  it('penalizes a wire to/from a decoy', () => {
+    const v = judgeWire(fix, ALL, 'web', 'fake');
+    expect(v).toMatchObject({ ok: false, penalize: true });
+    expect((v as { reason: string }).reason).toMatch(/no role/i);
+  });
+  it('penalizes a plausible-but-wrong wire', () => {
+    const v = judgeWire(fix, REAL, 'net', 'app');
+    expect(v).toMatchObject({ ok: false, penalize: true });
+    expect((v as { reason: string }).reason).toMatch(/not part of this design/i);
+  });
+});
+
+describe('objectiveProgress with placed', () => {
+  it('reports missing cards and decoys on board', () => {
+    const p = objectiveProgress(
+      fix,
+      [{ id: 'net->web', from: 'net', to: 'web', required: false }],
+      ['net', 'web', 'fake'],
+    );
+    expect(p.missingCards.sort()).toEqual(['app', 'db']);
+    expect(p.decoysOnBoard).toEqual(['fake']);
+  });
+});
+
+describe('isComplete with placed', () => {
+  const wired = fix.edges.map((e) => ({ ...e, required: false }));
+  it('is false while a decoy is on the board', () => {
+    expect(isComplete(fix, wired, ALL)).toBe(false);
+  });
+  it('is true with exactly the real cards, all wires, no decoys', () => {
+    expect(isComplete(fix, wired, REAL)).toBe(true);
+  });
+  it('is false when a required card is missing', () => {
+    expect(isComplete(fix, wired, ['net', 'web', 'app'])).toBe(false);
+  });
+});
+
+describe('hintFor', () => {
+  const base = { archSlug: 'fix', placed: REAL, edges: [], hintsUsed: 0 } as never;
+  it('nudges to drop a decoy when one is placed', () => {
+    const s = { ...(base as object), placed: ALL } as never;
+    expect(hintFor(fix, s).toLowerCase()).toContain('no role');
+  });
+  it('nudges about a missing piece when a card is missing', () => {
+    const s = { ...(base as object), placed: ['net', 'web'] } as never;
+    expect(hintFor(fix, s).toLowerCase()).toContain('missing');
+  });
+  it('cycles authored principle hints when wires are missing, never the answer', () => {
+    const s0 = { ...(base as object), placed: REAL, edges: [], hintsUsed: 0 } as never;
+    expect(hintFor(fix, s0)).toBe('principle one');
+    const s1 = { ...(base as object), placed: REAL, edges: [], hintsUsed: 1 } as never;
+    expect(hintFor(fix, s1)).toBe('principle two');
+    expect(hintFor(fix, s0)).not.toMatch(/connect /);
   });
 });

@@ -1,6 +1,14 @@
 import type { ArchEdge, ArchNode, Architecture } from '@content/architectures';
 import type { Pos } from './state';
 
+// hintFor only needs these fields; typing them locally keeps board.ts from
+// importing the full DeckState (state.ts already type-imports board).
+interface HintState {
+  placed: string[];
+  edges: ArchEdge[];
+  hintsUsed: number;
+}
+
 export interface Dims {
   width: number;
   height: number;
@@ -77,19 +85,64 @@ export function canConnect(
   return { ok: true };
 }
 
+// Cards pre-placed when a session starts: non-decoy sources (a client or
+// external node). Decoys are never auto-placed even if a source kind.
+export function entryCards(arch: Architecture): string[] {
+  return arch.nodes
+    .filter((n) => !n.decoy && (n.kind === 'external' || n.kind === 'client'))
+    .map((n) => n.id);
+}
+
+export type WireVerdict = { ok: true } | { ok: false; penalize: boolean; reason: string };
+
+// Judge a wire attempt against the real design. `ok` wires (a required edge,
+// both cards placed) stick; everything else is rejected. `penalize` is true
+// only for a genuine wrong attempt (both cards placed, not a required edge) -
+// guidance rejections (self-wire, card not placed) do not cost score.
+export function judgeWire(
+  arch: Architecture,
+  placed: string[],
+  fromId: string,
+  toId: string,
+): WireVerdict {
+  if (fromId === toId)
+    return { ok: false, penalize: false, reason: 'cannot wire a node to itself' };
+  if (!placed.includes(fromId) || !placed.includes(toId)) {
+    return { ok: false, penalize: false, reason: 'place both cards first' };
+  }
+  const required = arch.edges.some((e) => e.from === fromId && e.to === toId);
+  if (required) return { ok: true };
+  const from = arch.nodes.find((n) => n.id === fromId);
+  const to = arch.nodes.find((n) => n.id === toId);
+  if (!from || !to) return { ok: false, penalize: false, reason: 'unknown node' };
+  let reason: string;
+  if (from.kind === 'datastore') {
+    reason = `${from.label} is a datastore - it does not initiate connections`;
+  } else if (to.kind === 'datastore' && (from.kind === 'client' || from.kind === 'external')) {
+    reason = `do not expose ${to.label} directly to ${from.label}`;
+  } else if (from.decoy || to.decoy) {
+    reason = 'that card has no role in this design';
+  } else {
+    reason = `${from.label} -> ${to.label} is not part of this design`;
+  }
+  return { ok: false, penalize: true, reason };
+}
+
 export interface BootResult {
   order: string[];
   up: string[];
   unreachable: string[];
 }
 
-export function bootOrder(arch: Architecture, edges: ArchEdge[]): BootResult {
-  const ids = arch.nodes.map((n) => n.id);
+export function bootOrder(arch: Architecture, edges: ArchEdge[], placed?: string[]): BootResult {
+  const live = placed ? arch.nodes.filter((n) => placed.includes(n.id)) : arch.nodes;
+  const ids = live.map((n) => n.id);
+  const idSet = new Set(ids);
   const adj = new Map<string, string[]>(ids.map((id) => [id, []]));
-  for (const e of edges) adj.get(e.from)?.push(e.to);
-  const sources = arch.nodes
-    .filter((n) => n.kind === 'external' || n.kind === 'client')
-    .map((n) => n.id);
+  for (const e of edges) {
+    if (idSet.has(e.from) && idSet.has(e.to)) adj.get(e.from)?.push(e.to);
+  }
+  const sources = live.filter((n) => n.kind === 'external' || n.kind === 'client').map((n) => n.id);
   const seen = new Set<string>(sources);
   const order: string[] = [];
   const queue = [...sources];
@@ -112,9 +165,15 @@ export interface Progress {
   pct: number;
   missing: ArchEdge[];
   extra: ArchEdge[];
+  missingCards: string[];
+  decoysOnBoard: string[];
 }
 
-export function objectiveProgress(arch: Architecture, edges: ArchEdge[]): Progress {
+export function objectiveProgress(
+  arch: Architecture,
+  edges: ArchEdge[],
+  placed?: string[],
+): Progress {
   const req = arch.edges;
   const have = new Set(edges.map((e) => e.id));
   const reqIds = new Set(req.map((e) => e.id));
@@ -122,20 +181,51 @@ export function objectiveProgress(arch: Architecture, edges: ArchEdge[]): Progre
   const satisfied = req.length - missing.length;
   const extra = edges.filter((e) => !reqIds.has(e.id));
   const total = req.length;
+  const placedSet = new Set(placed ?? arch.nodes.map((n) => n.id));
+  const missingCards = arch.nodes.filter((n) => !n.decoy && !placedSet.has(n.id)).map((n) => n.id);
+  const decoysOnBoard = arch.nodes.filter((n) => n.decoy && placedSet.has(n.id)).map((n) => n.id);
   return {
     satisfied,
     total,
     pct: total === 0 ? 100 : Math.round((satisfied / total) * 100),
     missing,
     extra,
+    missingCards,
+    decoysOnBoard,
   };
 }
 
-export function isComplete(arch: Architecture, edges: ArchEdge[]): boolean {
-  const { satisfied, total } = objectiveProgress(arch, edges);
-  return satisfied === total && bootOrder(arch, edges).unreachable.length === 0;
+export function isComplete(arch: Architecture, edges: ArchEdge[], placed?: string[]): boolean {
+  const p = objectiveProgress(arch, edges, placed);
+  return (
+    p.satisfied === p.total &&
+    p.missingCards.length === 0 &&
+    p.decoysOnBoard.length === 0 &&
+    bootOrder(arch, edges, placed).unreachable.length === 0
+  );
 }
 
+// A vague, state-aware nudge - never the exact wire. Tiers: drop a stray decoy,
+// add a missing piece, an authored architectural principle while wiring, else
+// "looks wired".
+export function hintFor(arch: Architecture, state: HintState): string {
+  const p = objectiveProgress(arch, state.edges, state.placed);
+  if (p.decoysOnBoard.length > 0) {
+    return 'one of the cards you placed has no role in this design - drop it';
+  }
+  if (p.missingCards.length > 0) {
+    return 'the design is missing a piece - check the tray for what belongs';
+  }
+  if (p.satisfied < p.total) {
+    const hints = arch.hints ?? [];
+    if (hints.length > 0) return hints[state.hintsUsed % hints.length];
+    return "traffic flows source -> edge -> service -> data; follow the chain that isn't wired yet";
+  }
+  return 'looks wired - type boot';
+}
+
+// Deprecated by hintFor; retained until Deck.tsx migrates in a later task so the
+// project keeps typechecking. Returns the first missing required edge, or null.
 export function nextHint(arch: Architecture, edges: ArchEdge[]): ArchEdge | null {
   return objectiveProgress(arch, edges).missing[0] ?? null;
 }
@@ -146,10 +236,12 @@ export function nextHint(arch: Architecture, edges: ArchEdge[]): ArchEdge | null
 // required inbound) has nothing to wait on, so it is online from the start - the
 // React island only treats this set as live while the scenario is `playing`.
 // Pure: depends solely on `arch` + `edges`.
-export function onlineNodes(arch: Architecture, edges: ArchEdge[]): Set<string> {
+export function onlineNodes(arch: Architecture, edges: ArchEdge[], placed?: string[]): Set<string> {
   const have = new Set(edges.map((e) => e.id));
+  const live = placed ? new Set(placed) : new Set(arch.nodes.map((n) => n.id));
   const online = new Set<string>();
   for (const node of arch.nodes) {
+    if (!live.has(node.id)) continue;
     const requiredIn = arch.edges.filter((e) => e.to === node.id && e.required);
     if (requiredIn.every((e) => have.has(e.id))) online.add(node.id);
   }
