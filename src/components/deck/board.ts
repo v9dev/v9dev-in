@@ -207,12 +207,6 @@ export function hintFor(arch: Architecture, state: HintState): string {
   return 'looks wired - type boot';
 }
 
-// Deprecated by hintFor; retained until Deck.tsx migrates in a later task so the
-// project keeps typechecking. Returns the first missing required edge, or null.
-export function nextHint(arch: Architecture, edges: ArchEdge[]): ArchEdge | null {
-  return objectiveProgress(arch, edges).missing[0] ?? null;
-}
-
 // The set of node ids that are "online" given the currently wired `edges`. A
 // node is online once ALL of its REQUIRED inbound edges (from the reference
 // topology `arch.edges` where `to === node.id`) are present. A source node (no
