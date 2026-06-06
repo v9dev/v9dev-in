@@ -98,13 +98,10 @@ export default function ServiceNode({
   const borderColor = reject
     ? 'var(--color-fuchsia)'
     : (bootBorder ?? (armed || candidate || online ? accent : undefined));
-  // Base card drop-shadow (mirrors the Tailwind shadow class) so the inline
-  // boxShadow can layer the online glow on top without dropping it.
-  const baseShadow = '0 2px 8px -5px rgba(0,0,0,0.4)';
+  // No drop-shadow on cards. Online nodes still get a soft accent GLOW (a lit
+  // state cue, not a drop shadow); everything else has no boxShadow at all.
   const cardGlow =
-    online && !bootBorder && !armed && !candidate
-      ? `${baseShadow}, 0 0 18px -4px ${accent}55`
-      : undefined;
+    online && !bootBorder && !armed && !candidate ? `0 0 18px -4px ${accent}55` : undefined;
   // Offline nodes read muted; sources/satisfied nodes are full strength. The
   // wiring dim (non-target nodes while something is armed) still wins.
   const offlineDim = wiring && !armed && !candidate ? 0.55 : online ? undefined : 0.5;
@@ -175,7 +172,7 @@ export default function ServiceNode({
         onPointerDown={(e) => onNodeDragStart?.(node.id, e)}
         data-cursor-label={node.label.toLowerCase()}
         className={cn(
-          'group relative flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_2px_8px_-5px_rgba(0,0,0,0.4)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
+          'group relative flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
           reducedMotion ? '' : 'transition-colors',
         )}
         style={{
