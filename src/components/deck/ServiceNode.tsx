@@ -100,7 +100,7 @@ export default function ServiceNode({
     : (bootBorder ?? (armed || candidate || online ? accent : undefined));
   // Base card drop-shadow (mirrors the Tailwind shadow class) so the inline
   // boxShadow can layer the online glow on top without dropping it.
-  const baseShadow = '0 8px 24px -12px rgba(0,0,0,0.6)';
+  const baseShadow = '0 2px 8px -5px rgba(0,0,0,0.4)';
   const cardGlow =
     online && !bootBorder && !armed && !candidate
       ? `${baseShadow}, 0 0 18px -4px ${accent}55`
@@ -175,7 +175,7 @@ export default function ServiceNode({
         onPointerDown={(e) => onNodeDragStart?.(node.id, e)}
         data-cursor-label={node.label.toLowerCase()}
         className={cn(
-          'group relative flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_8px_24px_-12px_rgba(0,0,0,0.6)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
+          'group relative flex w-full touch-none flex-col items-center gap-2 rounded-xl border border-line bg-elevated px-3 py-3 text-center shadow-[0_2px_8px_-5px_rgba(0,0,0,0.4)] hover:border-line/0 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime',
           reducedMotion ? '' : 'transition-colors',
         )}
         style={{
