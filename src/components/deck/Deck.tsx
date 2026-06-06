@@ -15,8 +15,9 @@ import GameMenu from './GameMenu';
 import Hud from './Hud';
 import Terminal from './Terminal';
 import WinPanel from './WinPanel';
-import { bootOrder, canConnect, isComplete, nextHint, objectiveProgress } from './board';
+import { bootOrder, hintFor, isComplete, judgeWire, objectiveProgress } from './board';
 import { type Command, type Ctx, type GameVerb, parse } from './commands';
+import { SCORE, scoreState } from './scoring';
 import { type DeckAction, type DeckState, deckReducer, initDeckState } from './state';
 
 const arch = architectureBySlug['stalwart-mail'];
@@ -59,41 +60,72 @@ function runGame(
     case 'menu':
       dispatch({ type: 'MENU' });
       return;
-    case 'status': {
-      const p = objectiveProgress(activeArch, state.edges);
+    case 'cards': {
+      const onBoard = state.placed.join(', ') || '(none)';
+      const tray = activeArch.nodes.filter((n) => !state.placed.includes(n.id)).map((n) => n.id);
+      dispatch({ type: 'LOG', kind: 'output', text: `board: ${onBoard}` });
       dispatch({
         type: 'LOG',
         kind: 'output',
-        text: `progress ${p.pct}% - ${p.satisfied}/${p.total} required wires`,
+        text: tray.length ? `tray:  ${tray.join(', ')}` : 'tray:  (empty - all cards placed)',
       });
-      if (p.extra.length > 0) {
+      return;
+    }
+    case 'add': {
+      const node = activeArch.nodes.find((n) => n.id === cmd.arg);
+      if (!node) {
+        dispatch({ type: 'LOG', kind: 'error', text: `unknown card: ${cmd.arg ?? ''}` });
+        return;
+      }
+      if (state.placed.includes(node.id)) {
+        dispatch({ type: 'LOG', kind: 'output', text: `${node.id} is already on the board` });
+        return;
+      }
+      dispatch({ type: 'ADD_CARD', id: node.id, decoy: node.decoy === true });
+      dispatch({ type: 'LOG', kind: 'output', text: `+ ${node.id} placed` });
+      return;
+    }
+    case 'remove': {
+      if (!cmd.arg || !state.placed.includes(cmd.arg)) {
+        dispatch({ type: 'LOG', kind: 'error', text: `not on the board: ${cmd.arg ?? ''}` });
+        return;
+      }
+      dispatch({ type: 'REMOVE_CARD', id: cmd.arg });
+      dispatch({ type: 'LOG', kind: 'output', text: `- ${cmd.arg} removed` });
+      return;
+    }
+    case 'status': {
+      const p = objectiveProgress(activeArch, state.edges, state.placed);
+      const sc = scoreState(activeArch, state);
+      dispatch({
+        type: 'LOG',
+        kind: 'output',
+        text: `score ${sc.score}/${sc.max} (grade ${sc.grade}) - ${p.pct}% wires ${p.satisfied}/${p.total}`,
+      });
+      dispatch({
+        type: 'LOG',
+        kind: 'output',
+        text: `cards ${state.placed.length} placed - ${p.missingCards.length} still needed`,
+      });
+      if (p.decoysOnBoard.length > 0) {
         dispatch({
           type: 'LOG',
           kind: 'output',
-          text: `extra wires (not required): ${p.extra.map((e) => `${e.from}->${e.to}`).join(', ')}`,
+          text: `warning: ${p.decoysOnBoard.length} placed card(s) do not belong - remove them`,
         });
       }
-      if (p.missing.length > 0) {
-        dispatch({
-          type: 'LOG',
-          kind: 'output',
-          text: `missing: ${p.missing.map((e) => `${e.from}->${e.to}`).join(', ')}`,
-        });
-      } else {
-        dispatch({ type: 'LOG', kind: 'output', text: "all required wires present - try 'boot'" });
+      if (state.wrongWires > 0) {
+        dispatch({ type: 'LOG', kind: 'output', text: `wrong attempts: ${state.wrongWires}` });
+      }
+      if (p.satisfied === p.total && p.missingCards.length === 0 && p.decoysOnBoard.length === 0) {
+        dispatch({ type: 'LOG', kind: 'output', text: "design looks right - try 'boot'" });
       }
       return;
     }
     case 'hint': {
+      const text = hintFor(activeArch, state);
       dispatch({ type: 'HINT' });
-      const h = nextHint(activeArch, state.edges);
-      dispatch({
-        type: 'LOG',
-        kind: 'output',
-        text: h
-          ? `hint: connect ${h.from} ${h.to}`
-          : 'nothing to wire - all required wires present',
-      });
+      dispatch({ type: 'LOG', kind: 'output', text: `hint: ${text}` });
       return;
     }
     case 'boot': {
@@ -146,7 +178,7 @@ export default function Deck() {
     // or stale ticks would fire BOOT_STEP/LOG against the freshly-reset state.
     clearBootTimers();
     if (!state.boot.running) return;
-    const r = bootOrder(activeArch, state.edges);
+    const r = bootOrder(activeArch, state.edges, state.placed);
     // Single polite announcement: only the up-count. The unreachable `error`
     // lines are themselves live and announce per node, so the summary omits the
     // unreachable count to avoid double-announcing the same information.
@@ -164,7 +196,9 @@ export default function Deck() {
       dispatch({ type: 'BOOT_DONE' });
       setBootStatus(summary);
       // No animation to wait out under reduced motion - win immediately.
-      if (isComplete(activeArch, state.edges)) dispatch({ type: 'WIN', at: Date.now() });
+      if (isComplete(activeArch, state.edges, state.placed)) {
+        dispatch({ type: 'WIN', at: Date.now() });
+      }
       return;
     }
 
@@ -196,7 +230,7 @@ export default function Deck() {
     // same timer list so a reset (bumps bootSeq, re-runs this effect) cancels
     // it; the reducer also ignores WIN unless still playing, covering a `menu`
     // typed during the hold.
-    if (isComplete(activeArch, state.edges)) {
+    if (isComplete(activeArch, state.edges, state.placed)) {
       const win = setTimeout(
         () => dispatch({ type: 'WIN', at: Date.now() }),
         r.order.length * BOOT_STEP_MS + WIN_HOLD_MS,
@@ -226,9 +260,13 @@ export default function Deck() {
       dispatch({ type: 'LOG', kind: 'input', text: cmd.echo });
       const a = cmd.action;
       if (a.type === 'CONNECT') {
-        const v = canConnect(activeArch, a.from, a.to);
+        const v = judgeWire(activeArch, state.placed, a.from, a.to);
         if (!v.ok) {
           dispatch({ type: 'LOG', kind: 'error', text: `! ${v.reason}` });
+          if (v.penalize) {
+            dispatch({ type: 'WRONG_WIRE' });
+            dispatch({ type: 'LOG', kind: 'error', text: `WRONG -${SCORE.WRONG_WIRE}` });
+          }
           return;
         }
         dispatch(a);
