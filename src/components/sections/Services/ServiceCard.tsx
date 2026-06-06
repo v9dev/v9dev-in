@@ -1,6 +1,6 @@
-import { useRef } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
 import type { Service } from '@content/services';
+import { motion, useScroll, useTransform } from 'motion/react';
+import { useRef } from 'react';
 
 interface Props {
   service: Service;
@@ -37,12 +37,17 @@ export default function ServiceCard({ service, index, total }: Props) {
   return (
     <div
       ref={ref}
-      className="sticky top-0 h-screen flex items-center justify-center px-4"
-      style={{ paddingTop: `${index * 28}px` }}
+      // Pin cards to the TOP (not centered) with a small per-card staircase so a
+      // rising card covers the previous one cleanly from the bottom up - it never
+      // slices through the previous card's title the way a centered stack does.
+      className="sticky top-0 flex h-screen items-start justify-center px-4"
+      style={{ paddingTop: `calc(5rem + ${index} * 1.5rem)` }}
     >
       <motion.article
-        style={{ scale, opacity }}
-        className="relative w-full max-w-5xl rounded-3xl border border-line/80 bg-elevated/85 backdrop-blur-xl p-8 md:p-12 lg:p-16 shadow-[0_30px_100px_-30px_rgba(0,0,0,0.6)] overflow-hidden"
+        // Scale from the top edge so the outgoing card shrinks UP (its top stays
+        // put) as the next one slides over it - keeps the stack edges aligned.
+        style={{ scale, opacity, transformOrigin: 'top center' }}
+        className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-line/80 bg-elevated/85 p-8 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.45)] backdrop-blur-xl md:p-12 lg:p-16"
       >
         {/* Accent corner glow */}
         <div
