@@ -1,6 +1,8 @@
 import { type Architecture, architectureBySlug, architectures } from '@content/architectures';
+import { cn } from '@lib/cn';
 import { durations, prefersReducedMotion, stagger } from '@lib/motion';
 import {
+  type CSSProperties,
   type Dispatch,
   useCallback,
   useEffect,
@@ -14,7 +16,6 @@ import Diagram from './Diagram';
 import GameMenu from './GameMenu';
 import Hud from './Hud';
 import Terminal from './Terminal';
-import Tray from './Tray';
 import WinPanel from './WinPanel';
 import { bootOrder, hintFor, isComplete, judgeWire, objectiveProgress } from './board';
 import { type Command, type Ctx, type GameVerb, parse } from './commands';
@@ -317,12 +318,41 @@ export default function Deck() {
   }, [ctx, nextArch, runCommand]);
   const goMenu = useCallback(() => runCommand(parse('menu', ctx)), [ctx, runCommand]);
 
+  // Whole-deck fullscreen: the terminal + board fill the viewport together. Only
+  // meaningful in play (the toggle lives on the board), so it auto-exits on
+  // win/menu; Esc also exits. `--deck-panel-h` drives every panel's height, so
+  // switching it here grows the terminal + board to fill the fullscreen frame.
+  const [fullscreen, setFullscreen] = useState(false);
+  const toggleFullscreen = useCallback(() => setFullscreen((f) => !f), []);
+  useEffect(() => {
+    if (state.phase !== 'playing' && fullscreen) setFullscreen(false);
+  }, [state.phase, fullscreen]);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
+
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={cn(
+        'flex flex-col gap-4',
+        fullscreen && 'fixed inset-0 z-50 gap-3 overflow-hidden bg-canvas p-4',
+      )}
+      style={{ '--deck-panel-h': fullscreen ? '100%' : 'clamp(22rem,60vh,40rem)' } as CSSProperties}
+    >
       {/* Full-width HUD bar on top, so the terminal and board below sit at EQUAL
           height side-by-side and are seen together without scrolling. */}
       {state.phase === 'playing' && <Hud arch={activeArch} state={state} />}
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div
+        className={cn(
+          'grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]',
+          fullscreen && 'min-h-0 flex-1 grid-rows-1',
+        )}
+      >
         <Terminal ctx={ctx} log={state.log} history={state.history} onRun={runCommand} />
         {state.phase === 'menu' ? (
           <GameMenu ctx={ctx} onRun={runCommand} />
@@ -335,13 +365,17 @@ export default function Deck() {
             onMenu={goMenu}
           />
         ) : (
-          <Diagram arch={activeArch} state={state} dispatch={dispatch} onRun={runCommand} />
+          <Diagram
+            arch={activeArch}
+            state={state}
+            ctx={ctx}
+            dispatch={dispatch}
+            onRun={runCommand}
+            fullscreen={fullscreen}
+            onToggleFullscreen={toggleFullscreen}
+          />
         )}
       </div>
-      {/* Full-width tray strip docked at the bottom (horizontal, scrolls). */}
-      {state.phase === 'playing' && (
-        <Tray arch={activeArch} state={state} ctx={ctx} onRun={runCommand} />
-      )}
       <DetailDrawer node={selectedNode} open={state.selectedNodeId != null} onClose={closeDrawer} />
       {/* Single batched boot announcement - the per-step `boot:` up-lines render
           aria-hidden inside the Terminal log, so this <output> (implicit

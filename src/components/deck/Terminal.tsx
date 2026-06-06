@@ -93,7 +93,7 @@ export default function Terminal({ ctx, log, history, onRun }: Props) {
   };
 
   return (
-    <div className="flex flex-col rounded-2xl border border-line bg-elevated/70 backdrop-blur-xl overflow-hidden h-[clamp(22rem,60vh,40rem)]">
+    <div className="flex flex-col rounded-2xl border border-line bg-elevated/70 backdrop-blur-xl overflow-hidden h-[var(--deck-panel-h,clamp(22rem,60vh,40rem))]">
       <div className="flex items-center gap-2 border-b border-line/60 px-4 py-2.5">
         <span className="size-2.5 rounded-full bg-fuchsia/70" aria-hidden />
         <span className="size-2.5 rounded-full bg-cyan/70" aria-hidden />

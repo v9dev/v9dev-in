@@ -2,23 +2,42 @@ import type { Architecture } from '@content/architectures';
 import { durations, prefersReducedMotion } from '@lib/motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ServiceNode from './ServiceNode';
+import Tray from './Tray';
 import { judgeWire, layout, onlineNodes, portAnchor, wirePath } from './board';
 import type { PlacedNode } from './board';
-import type { Command } from './commands';
+import type { Command, Ctx } from './commands';
 import type { DeckAction, DeckState, Pos } from './state';
 
 interface Props {
   arch: Architecture;
   state: DeckState;
+  ctx: Ctx;
   dispatch: React.Dispatch<DeckAction>;
   onRun: (cmd: Command) => void;
+  /** Whether the whole deck is in fullscreen (drives the control glyph). */
+  fullscreen: boolean;
+  /** Toggle whole-deck fullscreen (the control lives on the board). */
+  onToggleFullscreen: () => void;
 }
 
 // Pointer must move this many px before a node-body press becomes a reposition
 // drag (so a plain click still selects/opens detail rather than nudging).
 const DRAG_THRESHOLD = 4;
-// Snap radius (px) around an in-port that counts as a drag-to-wire target.
+// Snap radius (screen px) around an in-port that counts as a drag-to-wire target.
 const SNAP_RADIUS = 48;
+// Zoom bounds for the board view.
+const SCALE_MIN = 0.4;
+const SCALE_MAX = 2.5;
+
+// Board view transform: pan offset (x, y, screen px) + zoom (scale). Scene (node
+// layout) coordinates map to screen via scene*scale + offset (origin top-left).
+interface View {
+  scale: number;
+  x: number;
+  y: number;
+}
+const DEFAULT_VIEW: View = { scale: 1, x: 0, y: 0 };
+const clampScale = (s: number): number => Math.min(SCALE_MAX, Math.max(SCALE_MIN, s));
 
 type DragSession =
   | {
@@ -38,13 +57,40 @@ type DragSession =
       originX: number;
       originY: number;
       moved: boolean;
+    }
+  | {
+      kind: 'pan';
+      pointerId: number;
+      startX: number;
+      startY: number;
+      originX: number;
+      originY: number;
     };
 
-export default function Diagram({ arch, state, dispatch, onRun }: Props) {
+export default function Diagram({
+  arch,
+  state,
+  ctx,
+  dispatch,
+  onRun,
+  fullscreen,
+  onToggleFullscreen,
+}: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<SVGPathElement>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
   const [reduced, setReduced] = useState(false);
+
+  // Pan/zoom view. Mirrored into a ref so the pointer handlers read the live
+  // transform without stale closures (and pan can mutate it imperatively).
+  const [view, setView] = useState<View>(DEFAULT_VIEW);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // On-board tray (collapsible). Open by default so cards are reachable on the
+  // canvas where the player is working.
+  const [trayOpen, setTrayOpen] = useState(true);
 
   useEffect(() => {
     setReduced(prefersReducedMotion());
@@ -62,6 +108,13 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Reset the view when the scenario changes so each level starts framed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on slug change.
+  useEffect(() => {
+    viewRef.current = DEFAULT_VIEW;
+    setView(DEFAULT_VIEW);
+  }, [arch.slug]);
 
   // Only PLACED cards render on the board; the tray holds the rest. Filter the
   // arch nodes to the placed set before layout so the diagram builds up as the
@@ -98,24 +151,38 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [arch, state.edges, state.phase, state.placed],
   );
 
+  // ── Coordinate transforms ─────────────────────────────────────────────────
+  // pointerRef and toLocal work in CANVAS (screen) px relative to the canvas box.
+  // Scene = node layout space; the transform wrapper maps scene -> canvas via
+  // scene*scale + offset. Drag math converts between the two through these.
+  const toLocal = useCallback((clientX: number, clientY: number): Pos => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
+  }, []);
+  const canvasToScene = useCallback((p: Pos): Pos => {
+    const v = viewRef.current;
+    return { x: (p.x - v.x) / v.scale, y: (p.y - v.y) / v.scale };
+  }, []);
+  const sceneToCanvas = useCallback((p: Pos): Pos => {
+    const v = viewRef.current;
+    return { x: p.x * v.scale + v.x, y: p.y * v.scale + v.y };
+  }, []);
+  // Imperatively apply a view to the wrapper (used during pan to avoid a React
+  // re-render of every node on each frame).
+  const applyTransform = useCallback((v: View) => {
+    if (wrapperRef.current) {
+      wrapperRef.current.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.scale})`;
+    }
+  }, []);
+
   // ── Drag session (local, dispatch only on pointerup) ──────────────────────
-  // All per-frame work happens inside an rAF loop that runs ONLY while a drag is
-  // active; nothing here dispatches to the reducer until pointerup. Live pointer
-  // position lives in a ref so pointermove never re-renders the diagram.
   const dragRef = useRef<DragSession | null>(null);
   const pointerRef = useRef<Pos>({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
-  // Set on pointerup when a node drag actually moved or a wire session ran, so
-  // the trailing synthesized click on the same button is swallowed instead of
-  // running the click-driven onSelect / arm path. Cleared on the next pointerdown
-  // and when the click consumes it.
   const suppressClickRef = useRef(false);
   const placedRef = useRef<Map<string, PlacedNode>>(placedById);
   placedRef.current = placedById;
 
-  // `wireDragging` toggles the ghost <path>; `snapTargetId` highlights the
-  // nearest valid in-port. Both update at most when their value changes (not
-  // per frame), so the rest of the diagram stays still during a drag.
   const [wireDragging, setWireDragging] = useState(false);
   const [snapTargetId, setSnapTargetId] = useState<string | null>(null);
   const snapTargetRef = useRef<string | null>(null);
@@ -125,28 +192,26 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   const [rejectId, setRejectId] = useState<string | null>(null);
   const rejectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toLocal = useCallback((clientX: number, clientY: number): Pos => {
-    const rect = canvasRef.current?.getBoundingClientRect();
-    return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
-  }, []);
-
-  // Nearest in-port to a local point, within SNAP_RADIUS. Every placed node is a
-  // legal snap target now - the wire is judged on drop (judgeWire), not gated
-  // here. Returns null when nothing is close enough.
-  const nearestTarget = useCallback((sourceId: string, point: Pos): string | null => {
-    let best: string | null = null;
-    let bestDist = SNAP_RADIUS;
-    for (const p of placedRef.current.values()) {
-      if (p.node.id === sourceId) continue;
-      const anchor = portAnchor(p, 'in');
-      const dist = Math.hypot(anchor.x - point.x, anchor.y - point.y);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = p.node.id;
+  // Nearest in-port to a canvas point, within SNAP_RADIUS (compared in screen px
+  // so the snap feels the same at any zoom). Every placed node is a legal target
+  // now - the wire is judged on drop (judgeWire), not gated here.
+  const nearestTarget = useCallback(
+    (sourceId: string, pointCanvas: Pos): string | null => {
+      let best: string | null = null;
+      let bestDist = SNAP_RADIUS;
+      for (const p of placedRef.current.values()) {
+        if (p.node.id === sourceId) continue;
+        const anchor = sceneToCanvas(portAnchor(p, 'in'));
+        const dist = Math.hypot(anchor.x - pointCanvas.x, anchor.y - pointCanvas.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = p.node.id;
+        }
       }
-    }
-    return best;
-  }, []);
+      return best;
+    },
+    [sceneToCanvas],
+  );
 
   const stopRaf = useCallback(() => {
     if (rafRef.current != null) {
@@ -164,7 +229,17 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     }
     const point = pointerRef.current;
 
-    if (session.kind === 'wire') {
+    if (session.kind === 'pan') {
+      // Imperative pan: shift the view offset by the canvas-px delta. No setState
+      // here so the nodes do not re-render every frame; state is committed on up.
+      const v: View = {
+        scale: viewRef.current.scale,
+        x: session.originX + (point.x - session.startX),
+        y: session.originY + (point.y - session.startY),
+      };
+      viewRef.current = v;
+      applyTransform(v);
+    } else if (session.kind === 'wire') {
       const source = placedRef.current.get(session.nodeId);
       if (source) {
         if (
@@ -179,23 +254,29 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
           setSnapTargetId(target);
         }
         const snapped = target ? placedRef.current.get(target) : undefined;
-        const end = snapped ? portAnchor(snapped, 'in') : point;
+        // Ghost lives inside the transformed wrapper, so both ends are SCENE
+        // coords: the snapped in-port anchor, or the live pointer mapped back.
+        const end = snapped ? portAnchor(snapped, 'in') : canvasToScene(point);
         ghostRef.current?.setAttribute('d', wirePath(portAnchor(source, 'out'), end));
       }
     } else {
-      // Node reposition: write the transform offset straight to the card so the
-      // React tree does not re-render per frame.
+      // Node reposition: the card lives in the scaled wrapper, so the inline
+      // translate is in SCENE units (canvas delta / scale) - it then renders back
+      // to the canvas-px the pointer moved.
+      const s = viewRef.current.scale;
       const dx = point.x - session.startX;
       const dy = point.y - session.startY;
       if (!session.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) session.moved = true;
       const card = canvasRef.current?.querySelector<HTMLElement>(
         `[data-node-id="${session.nodeId}"]`,
       );
-      if (card) card.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px)`;
+      if (card) {
+        card.style.transform = `translate(-50%, -50%) translate(${dx / s}px, ${dy / s}px)`;
+      }
     }
 
     rafRef.current = requestAnimationFrame(frame);
-  }, [nearestTarget]);
+  }, [applyTransform, canvasToScene, nearestTarget]);
 
   const endDrag = useCallback(
     (clientX: number, clientY: number, cancelled = false) => {
@@ -204,19 +285,19 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
       stopRaf();
       if (!session) return;
       const point = toLocal(clientX, clientY);
-      // pointercancel produces no trailing click, so never arm the suppression
-      // there (it would otherwise wrongly swallow a later keyboard activation).
       const couldTrailClick = !cancelled;
+
+      if (session.kind === 'pan') {
+        // Commit the imperative pan into state so the rendered transform matches.
+        setView(viewRef.current);
+        return;
+      }
 
       if (session.kind === 'wire') {
         const target = nearestTarget(session.nodeId, point);
         setWireDragging(false);
         setSnapTargetId(null);
         snapTargetRef.current = null;
-        // Swallow the trailing click only when this was a real drag (moved past
-        // the threshold) or it landed on a target - so it does not also run the
-        // click-driven arm path. A plain tap with no movement falls through to
-        // the D1 onClick arm (keeps tap-to-arm working on touch / mouse).
         if (couldTrailClick && (session.moved || target)) suppressClickRef.current = true;
         if (target) {
           // Flash the target red when the drop is a rejected wire. The runner
@@ -239,14 +320,13 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
         const card = canvasRef.current?.querySelector<HTMLElement>(
           `[data-node-id="${session.nodeId}"]`,
         );
-        // Drop the inline transform; the reducer's new left/top takes over.
         if (card) card.style.transform = '';
         if (session.moved) {
-          // Swallow the trailing click so a reposition does not also fire
-          // onSelect (which would open the detail drawer on drop).
           if (couldTrailClick) suppressClickRef.current = true;
-          const dx = point.x - session.startX;
-          const dy = point.y - session.startY;
+          // Convert the canvas-px drag delta back to scene units before storing.
+          const s = viewRef.current.scale;
+          const dx = (point.x - session.startX) / s;
+          const dy = (point.y - session.startY) / s;
           dispatch({
             type: 'MOVE_NODE',
             id: session.nodeId,
@@ -282,8 +362,6 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [endDrag],
   );
 
-  // Begin a drag-to-wire session from an out port (pointer capture on the
-  // canvas so move/up keep flowing even off the small port hit target).
   const handleWireStart = useCallback(
     (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -307,8 +385,6 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [frame, stopRaf, toLocal],
   );
 
-  // Begin a node reposition drag from the card body. A plain click (no movement
-  // past DRAG_THRESHOLD) leaves selection/onSelect untouched.
   const handleNodeDragStart = useCallback(
     (id: string, e: React.PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -333,9 +409,6 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [frame, stopRaf, toLocal],
   );
 
-  // Read-and-clear the post-drag click suppression. Called from the card / out
-  // port onClick so the trailing synthesized click after a drag is swallowed
-  // once, and the next genuine click goes through.
   const consumeClickSuppressed = useCallback(() => {
     if (!suppressClickRef.current) return false;
     suppressClickRef.current = false;
@@ -353,14 +426,58 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [],
   );
 
+  // ── Zoom ──────────────────────────────────────────────────────────────────
+  // Wheel-to-zoom toward the cursor, via a non-passive native listener so it can
+  // preventDefault the page scroll (the canvas is not itself scrollable).
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const v = viewRef.current;
+      const scale = clampScale(v.scale * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+      const next: View = {
+        scale,
+        x: cx - ((cx - v.x) / v.scale) * scale,
+        y: cy - ((cy - v.y) / v.scale) * scale,
+      };
+      viewRef.current = next;
+      setView(next);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // Zoom by a factor around the canvas centre (the +/- buttons).
+  const zoomBy = useCallback((factor: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const cx = (rect?.width ?? 0) / 2;
+    const cy = (rect?.height ?? 0) / 2;
+    const v = viewRef.current;
+    const scale = clampScale(v.scale * factor);
+    const next: View = {
+      scale,
+      x: cx - ((cx - v.x) / v.scale) * scale,
+      y: cy - ((cy - v.y) / v.scale) * scale,
+    };
+    viewRef.current = next;
+    setView(next);
+  }, []);
+
+  const resetView = useCallback(() => {
+    viewRef.current = DEFAULT_VIEW;
+    setView(DEFAULT_VIEW);
+  }, []);
+
   const disarm = useCallback(() => {
     if (!state.armedFrom) return;
     dispatch({ type: 'DISARM' });
     dispatch({ type: 'LOG', kind: 'system', text: 'cancelled' });
   }, [dispatch, state.armedFrom]);
 
-  // Activating an OUT port arms this node as the wiring source. Re-activating
-  // the already-armed source cancels (DISARM).
   const handlePortOut = useCallback(
     (id: string) => {
       if (state.armedFrom === id) {
@@ -377,10 +494,6 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [dispatch, disarm, state.armedFrom],
   );
 
-  // Activating an IN port: while armed it completes the wire via the SAME path
-  // as a typed `connect` (so validity, LINK/error lines, and history match the
-  // terminal). When nothing is armed, activating an in-port that has exactly
-  // one inbound edge disconnects that edge.
   const handlePortIn = useCallback(
     (id: string) => {
       if (state.armedFrom) {
@@ -405,19 +518,32 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [onRun, state.armedFrom, state.edges],
   );
 
-  // Clicking empty canvas cancels an armed source. This also fires (via bubbling)
-  // for every pointerdown inside the canvas, so it is where we clear any stale
-  // post-drag click-suppression: a new gesture always starts un-suppressed, and
-  // the flag only survives between a drag's pointerup and its trailing click.
+  // Pressing the empty canvas starts a PAN (and cancels any armed source / clears
+  // stale post-drag click suppression). Presses on a node/port hit their own
+  // handlers first and bubble here with e.target !== the canvas, so they never
+  // start a pan.
   const handleCanvasPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       suppressClickRef.current = false;
-      if (e.target === e.currentTarget) disarm();
+      if (e.target !== e.currentTarget) return;
+      disarm();
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      const start = toLocal(e.clientX, e.clientY);
+      dragRef.current = {
+        kind: 'pan',
+        pointerId: e.pointerId,
+        startX: start.x,
+        startY: start.y,
+        originX: viewRef.current.x,
+        originY: viewRef.current.y,
+      };
+      pointerRef.current = start;
+      stopRaf();
+      rafRef.current = requestAnimationFrame(frame);
     },
-    [disarm],
+    [disarm, frame, stopRaf, toLocal],
   );
 
-  // Esc cancels an armed source (canvas-scoped keydown listener).
   const handleCanvasKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Escape') disarm();
@@ -425,10 +551,6 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     [disarm],
   );
 
-  // Clicking (or Enter/Space on) a node body opens its detail drawer. The
-  // click-vs-drag threshold is handled upstream: a reposition that moved past
-  // DRAG_THRESHOLD arms suppressClickRef, so ServiceNode swallows the trailing
-  // synthesized click before this runs (a plain click still selects).
   const handleSelect = useCallback(
     (id: string) => {
       dispatch({ type: 'SELECT_NODE', id });
@@ -446,116 +568,188 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   );
 
   const ready = dims.width > 0 && dims.height > 0;
+  const ctrlClass =
+    'grid size-7 place-items-center rounded-md border border-line bg-canvas/80 font-mono text-[12px] text-muted backdrop-blur-sm transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime';
 
   return (
     <div
       ref={canvasRef}
       data-lenis-prevent
       data-cursor="drag"
-      data-cursor-label="wire"
+      data-cursor-label="pan"
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onKeyDown={handleCanvasKeyDown}
-      className="relative h-[clamp(22rem,60vh,40rem)] touch-none overflow-hidden rounded-2xl border border-line bg-canvas/60"
+      className="relative h-[var(--deck-panel-h,clamp(22rem,60vh,40rem))] touch-none overflow-hidden rounded-2xl border border-line bg-canvas/60"
     >
-      <svg
-        className="absolute inset-0 h-full w-full"
-        width={dims.width}
-        height={dims.height}
-        role="img"
-        aria-label="architecture wiring"
+      {/* Pan/zoom wrapper - every scene element (edges + nodes) lives inside so
+          they transform together; overlays (controls, tray) sit outside it. */}
+      <div
+        ref={wrapperRef}
+        className="absolute inset-0 origin-top-left"
+        style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
       >
-        <title>architecture wiring</title>
-        <defs>
-          <linearGradient id="deck-wire" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity="0.85" />
-            <stop offset="50%" stopColor="var(--color-lime)" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="var(--color-fuchsia)" stopOpacity="0.85" />
-          </linearGradient>
-          <filter id="deck-wire-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow
-              dx="0"
-              dy="0"
-              stdDeviation="3"
-              floodColor="var(--color-lime)"
-              floodOpacity="0.35"
+        <svg
+          className="absolute inset-0 h-full w-full"
+          style={{ overflow: 'visible' }}
+          width={dims.width}
+          height={dims.height}
+          role="img"
+          aria-label="architecture wiring"
+        >
+          <title>architecture wiring</title>
+          <defs>
+            <linearGradient id="deck-wire" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity="0.85" />
+              <stop offset="50%" stopColor="var(--color-lime)" stopOpacity="0.85" />
+              <stop offset="100%" stopColor="var(--color-fuchsia)" stopOpacity="0.85" />
+            </linearGradient>
+            <filter id="deck-wire-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow
+                dx="0"
+                dy="0"
+                stdDeviation="3"
+                floodColor="var(--color-lime)"
+                floodOpacity="0.35"
+              />
+            </filter>
+          </defs>
+          {ready &&
+            state.edges.map((edge) => {
+              const from = placedById.get(edge.from);
+              const to = placedById.get(edge.to);
+              if (!from || !to) return null;
+              const d = wirePath(portAnchor(from, 'out'), portAnchor(to, 'in'));
+              return (
+                <g key={edge.id}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="url(#deck-wire)"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    filter="url(#deck-wire-glow)"
+                  />
+                  {/* Live data-flow: a dashed overlay drifting along the wire. The
+                      .wire-flow keyframe is neutralized under prefers-reduced-motion
+                      by the global CSS rule, leaving a static dashed stroke. */}
+                  <path
+                    className="wire-flow"
+                    d={d}
+                    fill="none"
+                    stroke="var(--color-lime)"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    opacity={0.45}
+                  />
+                </g>
+              );
+            })}
+          {/* Drag-to-wire ghost path: a single element, mutated directly each
+              frame via ghostRef (never re-rendered while dragging). */}
+          {wireDragging && (
+            <path
+              ref={ghostRef}
+              d=""
+              fill="none"
+              stroke="var(--color-lime)"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeDasharray="4 4"
+              opacity={0.85}
             />
-          </filter>
-        </defs>
-        {ready &&
-          state.edges.map((edge) => {
-            const from = placedById.get(edge.from);
-            const to = placedById.get(edge.to);
-            if (!from || !to) return null;
-            const d = wirePath(portAnchor(from, 'out'), portAnchor(to, 'in'));
-            return (
-              <g key={edge.id}>
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="url(#deck-wire)"
-                  strokeWidth={1.75}
-                  strokeLinecap="round"
-                  filter="url(#deck-wire-glow)"
-                />
-                {/* Live data-flow: a dashed overlay drifting along the wire. The
-                    .wire-flow keyframe is neutralized under prefers-reduced-motion
-                    by the global CSS rule, leaving a static dashed stroke. */}
-                <path
-                  className="wire-flow"
-                  d={d}
-                  fill="none"
-                  stroke="var(--color-lime)"
-                  strokeWidth={1.75}
-                  strokeLinecap="round"
-                  opacity={0.45}
-                />
-              </g>
-            );
-          })}
-        {/* Drag-to-wire ghost path: a single element, mutated directly each
-            frame via ghostRef (never re-rendered while dragging). */}
-        {wireDragging && (
-          <path
-            ref={ghostRef}
-            d=""
-            fill="none"
-            stroke="var(--color-lime)"
-            strokeWidth={1.75}
-            strokeLinecap="round"
-            strokeDasharray="4 4"
-            opacity={0.85}
-          />
-        )}
-      </svg>
+          )}
+        </svg>
 
-      {ready &&
-        placed.map((p) => (
-          <ServiceNode
-            key={p.node.id}
-            node={p.node}
-            x={p.x}
-            y={p.y}
-            armed={armedFrom === p.node.id}
-            candidate={false}
-            wiring={armedFrom != null}
-            snapTarget={snapTargetId === p.node.id}
-            online={online.has(p.node.id)}
-            bootUp={bootUp.has(p.node.id)}
-            bootUnreachable={bootUnreachable.has(p.node.id)}
-            reject={rejectId === p.node.id}
-            reducedMotion={reduced}
-            onPortOut={handlePortOut}
-            onPortIn={handlePortIn}
-            onSelect={handleSelect}
-            onWireStart={handleWireStart}
-            onNodeDragStart={handleNodeDragStart}
-            onRemove={handleRemove}
-            consumeClickSuppressed={consumeClickSuppressed}
-          />
-        ))}
+        {ready &&
+          placed.map((p) => (
+            <ServiceNode
+              key={p.node.id}
+              node={p.node}
+              x={p.x}
+              y={p.y}
+              armed={armedFrom === p.node.id}
+              candidate={false}
+              wiring={armedFrom != null}
+              snapTarget={snapTargetId === p.node.id}
+              online={online.has(p.node.id)}
+              bootUp={bootUp.has(p.node.id)}
+              bootUnreachable={bootUnreachable.has(p.node.id)}
+              reject={rejectId === p.node.id}
+              reducedMotion={reduced}
+              onPortOut={handlePortOut}
+              onPortIn={handlePortIn}
+              onSelect={handleSelect}
+              onWireStart={handleWireStart}
+              onNodeDragStart={handleNodeDragStart}
+              onRemove={handleRemove}
+              consumeClickSuppressed={consumeClickSuppressed}
+            />
+          ))}
+      </div>
+
+      {/* Board controls (zoom / fit / fullscreen / tray) - fixed on the viewport,
+          outside the pan/zoom wrapper so they never move or scale. */}
+      <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
+        <button
+          type="button"
+          aria-label="zoom in"
+          className={ctrlClass}
+          onClick={() => zoomBy(1.2)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="zoom out"
+          className={ctrlClass}
+          onClick={() => zoomBy(1 / 1.2)}
+        >
+          {'−'}
+        </button>
+        <button
+          type="button"
+          aria-label="reset view"
+          className={ctrlClass}
+          onClick={resetView}
+          data-cursor-label="fit"
+        >
+          {'⤢'}
+        </button>
+        <button
+          type="button"
+          aria-label={fullscreen ? 'exit fullscreen' : 'fullscreen'}
+          className={ctrlClass}
+          onClick={onToggleFullscreen}
+          data-cursor-label={fullscreen ? 'exit' : 'full'}
+        >
+          {fullscreen ? '×' : '⛶'}
+        </button>
+        <button
+          type="button"
+          aria-label={trayOpen ? 'hide tray' : 'show tray'}
+          className={ctrlClass}
+          onClick={() => setTrayOpen((o) => !o)}
+          data-cursor-label="tray"
+        >
+          {'▤'}
+        </button>
+      </div>
+
+      {/* Current zoom level, top-left (clear of the controls and the tray). */}
+      <div className="absolute left-2 top-2 z-20 rounded-md border border-line bg-canvas/80 px-2 py-0.5 font-mono text-[10px] text-muted backdrop-blur-sm">
+        {Math.round(view.scale * 100)}%
+      </div>
+
+      {/* On-board tray (collapsible) - a floating strip of add-a-card chips docked
+          at the bottom edge of the board, where the player is working. */}
+      {trayOpen && (
+        <div className="absolute inset-x-2 bottom-2 z-20">
+          <Tray arch={arch} state={state} ctx={ctx} onRun={onRun} />
+        </div>
+      )}
     </div>
   );
 }

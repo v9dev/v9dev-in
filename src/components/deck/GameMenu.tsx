@@ -21,7 +21,12 @@ const DIFFICULTY_CLASS: Record<Architecture['difficulty'], string> = {
 // the SAME parse path as typing it, so the terminal log + state stay in sync.
 export default function GameMenu({ ctx, onRun }: Props) {
   return (
-    <div className="flex h-[clamp(22rem,60vh,40rem)] flex-col gap-4 overflow-y-auto rounded-2xl border border-line bg-canvas/60 p-5 font-mono">
+    // data-lenis-prevent so the wheel/trackpad scrolls THIS list instead of being
+    // captured by the page's smooth-scroll (no grabbing the scrollbar).
+    <div
+      data-lenis-prevent
+      className="flex h-[var(--deck-panel-h,clamp(22rem,60vh,40rem))] flex-col gap-4 overflow-y-auto rounded-2xl border border-line bg-canvas/60 p-5 font-mono"
+    >
       <div>
         <p className="text-[11px] uppercase tracking-widest text-muted">select a game</p>
         <p className="mt-1 text-[12.5px] text-text">
