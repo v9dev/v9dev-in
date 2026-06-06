@@ -1,8 +1,8 @@
 import type { Architecture } from '@content/architectures';
-import { prefersReducedMotion } from '@lib/motion';
+import { durations, prefersReducedMotion } from '@lib/motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ServiceNode from './ServiceNode';
-import { canConnect, layout, onlineNodes, portAnchor, wirePath } from './board';
+import { judgeWire, layout, onlineNodes, portAnchor, wirePath } from './board';
 import type { PlacedNode } from './board';
 import type { Command } from './commands';
 import type { DeckAction, DeckState, Pos } from './state';
@@ -63,7 +63,18 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const placed = useMemo(() => layout(arch, state.positions, dims), [arch, state.positions, dims]);
+  // Only PLACED cards render on the board; the tray holds the rest. Filter the
+  // arch nodes to the placed set before layout so the diagram builds up as the
+  // player adds cards. (`placed` below is PlacedNode[]; do not confuse it with
+  // `state.placed`, the placed-card id list.)
+  const liveArch = useMemo(
+    () => ({ ...arch, nodes: arch.nodes.filter((n) => state.placed.includes(n.id)) }),
+    [arch, state.placed],
+  );
+  const placed = useMemo(
+    () => layout(liveArch, state.positions, dims),
+    [liveArch, state.positions, dims],
+  );
 
   const placedById = useMemo(() => {
     const map = new Map<string, PlacedNode>();
@@ -82,20 +93,10 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   // are wired (sources are online from the start). Only live while the scenario
   // is playing - at the menu every node reads offline (empty set). Pure derive.
   const online = useMemo(
-    () => (state.phase === 'playing' ? onlineNodes(arch, state.edges) : new Set<string>()),
-    [arch, state.edges, state.phase],
+    () =>
+      state.phase === 'playing' ? onlineNodes(arch, state.edges, state.placed) : new Set<string>(),
+    [arch, state.edges, state.phase, state.placed],
   );
-
-  // The set of valid target node ids while a source is armed (drives the
-  // candidate ring/scale affordance on the IN ports).
-  const candidates = useMemo(() => {
-    if (!armedFrom) return new Set<string>();
-    const ids = new Set<string>();
-    for (const n of arch.nodes) {
-      if (canConnect(arch, armedFrom, n.id).ok) ids.add(n.id);
-    }
-    return ids;
-  }, [arch, armedFrom]);
 
   // ── Drag session (local, dispatch only on pointerup) ──────────────────────
   // All per-frame work happens inside an rAF loop that runs ONLY while a drag is
@@ -119,31 +120,33 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   const [snapTargetId, setSnapTargetId] = useState<string | null>(null);
   const snapTargetRef = useRef<string | null>(null);
 
+  // A rejected wire drop briefly flashes the target card fuchsia (no edge is
+  // ever created). Transient local state, cleared after one pulse.
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const rejectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const toLocal = useCallback((clientX: number, clientY: number): Pos => {
     const rect = canvasRef.current?.getBoundingClientRect();
     return { x: clientX - (rect?.left ?? 0), y: clientY - (rect?.top ?? 0) };
   }, []);
 
-  // Nearest valid in-port to a local point, within SNAP_RADIUS, given the armed
-  // source. Returns null when nothing is close enough or valid.
-  const nearestTarget = useCallback(
-    (sourceId: string, point: Pos): string | null => {
-      let best: string | null = null;
-      let bestDist = SNAP_RADIUS;
-      for (const p of placedRef.current.values()) {
-        if (p.node.id === sourceId) continue;
-        if (!canConnect(arch, sourceId, p.node.id).ok) continue;
-        const anchor = portAnchor(p, 'in');
-        const dist = Math.hypot(anchor.x - point.x, anchor.y - point.y);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = p.node.id;
-        }
+  // Nearest in-port to a local point, within SNAP_RADIUS. Every placed node is a
+  // legal snap target now - the wire is judged on drop (judgeWire), not gated
+  // here. Returns null when nothing is close enough.
+  const nearestTarget = useCallback((sourceId: string, point: Pos): string | null => {
+    let best: string | null = null;
+    let bestDist = SNAP_RADIUS;
+    for (const p of placedRef.current.values()) {
+      if (p.node.id === sourceId) continue;
+      const anchor = portAnchor(p, 'in');
+      const dist = Math.hypot(anchor.x - point.x, anchor.y - point.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = p.node.id;
       }
-      return best;
-    },
-    [arch],
-  );
+    }
+    return best;
+  }, []);
 
   const stopRaf = useCallback(() => {
     if (rafRef.current != null) {
@@ -216,6 +219,14 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
         // the D1 onClick arm (keeps tap-to-arm working on touch / mouse).
         if (couldTrailClick && (session.moved || target)) suppressClickRef.current = true;
         if (target) {
+          // Flash the target red when the drop is a rejected wire. The runner
+          // still judges + logs the reason/penalty below; this is the UI tell.
+          const verdict = judgeWire(arch, state.placed, session.nodeId, target);
+          if (!verdict.ok) {
+            setRejectId(target);
+            if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current);
+            rejectTimerRef.current = setTimeout(() => setRejectId(null), durations.pulse * 1000);
+          }
           // Same path as a typed `connect` so validity, the LINK/error lines,
           // and history all match the terminal exactly.
           onRun({
@@ -244,7 +255,7 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
         }
       }
     },
-    [dispatch, nearestTarget, onRun, stopRaf, toLocal],
+    [arch, dispatch, nearestTarget, onRun, state.placed, stopRaf, toLocal],
   );
 
   const handlePointerMove = useCallback(
@@ -334,6 +345,14 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
   // Cancel any in-flight rAF on unmount.
   useEffect(() => stopRaf, [stopRaf]);
 
+  // Clear a pending reject-flash timer on unmount.
+  useEffect(
+    () => () => {
+      if (rejectTimerRef.current) clearTimeout(rejectTimerRef.current);
+    },
+    [],
+  );
+
   const disarm = useCallback(() => {
     if (!state.armedFrom) return;
     dispatch({ type: 'DISARM' });
@@ -415,6 +434,15 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
       dispatch({ type: 'SELECT_NODE', id });
     },
     [dispatch],
+  );
+
+  // The card's x control returns it to the tray via the SAME path as a typed
+  // `remove`, so the log line, move count, and dropped wires all match.
+  const handleRemove = useCallback(
+    (id: string) => {
+      onRun({ kind: 'game', verb: 'remove', arg: id, echo: `remove ${id}` });
+    },
+    [onRun],
   );
 
   const ready = dims.width > 0 && dims.height > 0;
@@ -511,18 +539,20 @@ export default function Diagram({ arch, state, dispatch, onRun }: Props) {
             x={p.x}
             y={p.y}
             armed={armedFrom === p.node.id}
-            candidate={candidates.has(p.node.id)}
+            candidate={false}
             wiring={armedFrom != null}
             snapTarget={snapTargetId === p.node.id}
             online={online.has(p.node.id)}
             bootUp={bootUp.has(p.node.id)}
             bootUnreachable={bootUnreachable.has(p.node.id)}
+            reject={rejectId === p.node.id}
             reducedMotion={reduced}
             onPortOut={handlePortOut}
             onPortIn={handlePortIn}
             onSelect={handleSelect}
             onWireStart={handleWireStart}
             onNodeDragStart={handleNodeDragStart}
+            onRemove={handleRemove}
             consumeClickSuppressed={consumeClickSuppressed}
           />
         ))}

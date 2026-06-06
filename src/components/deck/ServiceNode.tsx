@@ -27,6 +27,8 @@ interface Props {
   bootUp?: boolean;
   /** Whether this node is unreachable after a boot (red outline). */
   bootUnreachable?: boolean;
+  /** Whether a wire drop onto this node was just rejected (transient red flash). */
+  reject?: boolean;
   /** Disable transitions for the ring/scale affordance (reduced motion). */
   reducedMotion?: boolean;
   /** Activate the `out` port: arms this node as a wiring source. */
@@ -39,6 +41,8 @@ interface Props {
   onWireStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
   /** Begin a pointer drag to reposition this node's card. */
   onNodeDragStart?: (id: string, e: React.PointerEvent<HTMLButtonElement>) => void;
+  /** Return this card to the tray (x control on the card). */
+  onRemove?: (id: string) => void;
   /**
    * Returns true when the click that immediately follows a pointer drag should
    * be swallowed (it is the synthesized click after a reposition that moved or a
@@ -61,12 +65,14 @@ export default function ServiceNode({
   online,
   bootUp,
   bootUnreachable,
+  reject,
   reducedMotion,
   onPortOut,
   onPortIn,
   onSelect,
   onWireStart,
   onNodeDragStart,
+  onRemove,
   consumeClickSuppressed,
 }: Props) {
   const accent = skillsById[node.skillId ?? '']?.brand ?? node.accent ?? 'var(--color-lime)';
@@ -89,7 +95,9 @@ export default function ServiceNode({
   // with a soft accent glow; the boot border and the armed/candidate accent both
   // outrank it. A live wiring drag keeps its own dim, so offline muting only
   // applies when nothing is being wired.
-  const borderColor = bootBorder ?? (armed || candidate || online ? accent : undefined);
+  const borderColor = reject
+    ? 'var(--color-fuchsia)'
+    : (bootBorder ?? (armed || candidate || online ? accent : undefined));
   // Base card drop-shadow (mirrors the Tailwind shadow class) so the inline
   // boxShadow can layer the online glow on top without dropping it.
   const baseShadow = '0 8px 24px -12px rgba(0,0,0,0.6)';
@@ -107,6 +115,21 @@ export default function ServiceNode({
       className="absolute -translate-x-1/2 -translate-y-1/2 will-change-transform"
       style={{ left: x, top: y, width: NODE_WIDTH }}
     >
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`remove ${node.label}`}
+          data-cursor-label="remove"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(node.id);
+          }}
+          className="absolute -right-1.5 -top-1.5 z-20 grid size-5 place-items-center rounded-full border border-line bg-canvas text-[10px] text-muted hover:border-fuchsia hover:text-fuchsia focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia"
+        >
+          x
+        </button>
+      )}
+
       {/* In port (left) */}
       <button
         type="button"

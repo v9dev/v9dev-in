@@ -68,23 +68,6 @@ export function wirePath(a: Pos, b: Pos): string {
   return `M ${a.x},${a.y} C ${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`;
 }
 
-export function canConnect(
-  arch: Architecture,
-  fromId: string,
-  toId: string,
-): { ok: boolean; reason?: string } {
-  if (fromId === toId) return { ok: false, reason: 'cannot wire a node to itself' };
-  const from = arch.nodes.find((n) => n.id === fromId);
-  const to = arch.nodes.find((n) => n.id === toId);
-  if (!from || !to) return { ok: false, reason: 'unknown node' };
-  if (from.kind === 'datastore')
-    return { ok: false, reason: 'a datastore does not initiate connections' };
-  if (to.kind === 'datastore' && (from.kind === 'client' || from.kind === 'external')) {
-    return { ok: false, reason: `cannot expose ${to.label} to ${from.label}` };
-  }
-  return { ok: true };
-}
-
 // Cards pre-placed when a session starts: non-decoy sources (a client or
 // external node). Decoys are never auto-placed even if a source kind.
 export function entryCards(arch: Architecture): string[] {

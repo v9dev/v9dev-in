@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { architectureBySlug } from '../../content/architectures';
 import {
   bootOrder,
-  canConnect,
   entryCards,
   hintFor,
   isComplete,
@@ -43,14 +42,6 @@ describe('board', () => {
     expect(d.startsWith('M 0,0')).toBe(true);
     expect(d).toContain('C');
     expect(d.trim().endsWith('100,50')).toBe(true);
-  });
-
-  it('canConnect refuses client/external -> datastore and self/datastore-source', () => {
-    expect(canConnect(arch, 'mailclient', 'sqlite').ok).toBe(false);
-    expect(canConnect(arch, 'internet', 'sqlite').ok).toBe(false);
-    expect(canConnect(arch, 'sqlite', 'stalwart').ok).toBe(false);
-    expect(canConnect(arch, 'nginx', 'nginx').ok).toBe(false);
-    expect(canConnect(arch, 'nginx', 'stalwart').ok).toBe(true);
   });
 
   it('bootOrder: the reference topology reaches every real node (no unreachable)', () => {
