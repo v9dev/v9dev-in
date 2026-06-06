@@ -10,7 +10,7 @@ interface Props {
   onRun: (cmd: Command) => void;
 }
 
-const HINTS = ['help', 'ls', 'play stalwart-mail', 'status', 'hint', 'boot'] as const;
+const HINTS = ['help', 'ls', 'play stalwart-mail', 'add', 'connect', 'boot'] as const;
 
 const LINE_CLASS: Record<LogKind, string> = {
   input: 'text-text/55',

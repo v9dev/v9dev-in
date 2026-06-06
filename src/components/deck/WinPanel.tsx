@@ -1,4 +1,5 @@
 import type { Architecture } from '@content/architectures';
+import { scoreState } from './scoring';
 import type { DeckState } from './state';
 
 interface Props {
@@ -27,16 +28,27 @@ function formatElapsed(ms: number): string {
 export default function WinPanel({ arch, state, next, onNext, onMenu }: Props) {
   const elapsed =
     state.startedAt != null && state.wonAt != null ? state.wonAt - state.startedAt : 0;
+  const sc = scoreState(arch, state);
 
   return (
     <div className="flex h-[clamp(22rem,60vh,40rem)] flex-col items-center justify-center gap-6 rounded-2xl border border-lime/60 bg-canvas/60 p-6 text-center font-mono">
       <div className="flex flex-col items-center gap-2">
         <span className="text-[11px] uppercase tracking-widest text-lime">system online</span>
         <h2 className="font-display text-2xl text-text">{arch.title}</h2>
-        <p className="text-[12px] text-muted">objective complete - the server is up</p>
+        <div className="flex items-baseline gap-3">
+          <span className="font-display text-4xl text-lime">{sc.grade}</span>
+          <span className="text-sm text-muted tabular-nums">
+            {sc.score}/{sc.max}
+          </span>
+        </div>
+        {sc.perfect && (
+          <span className="rounded-full border border-lime px-3 py-1 text-[10px] uppercase tracking-widest text-lime">
+            perfect run
+          </span>
+        )}
       </div>
 
-      <dl className="grid grid-cols-3 gap-x-6 gap-y-1 text-center">
+      <dl className="grid grid-cols-4 gap-x-6 gap-y-1 text-center">
         <div className="flex flex-col gap-1">
           <dt className="text-[10px] uppercase tracking-widest text-muted">time</dt>
           <dd className="text-lg text-lime tabular-nums">{formatElapsed(elapsed)}</dd>
@@ -44,6 +56,10 @@ export default function WinPanel({ arch, state, next, onNext, onMenu }: Props) {
         <div className="flex flex-col gap-1">
           <dt className="text-[10px] uppercase tracking-widest text-muted">moves</dt>
           <dd className="text-lg text-text tabular-nums">{state.moves}</dd>
+        </div>
+        <div className="flex flex-col gap-1">
+          <dt className="text-[10px] uppercase tracking-widest text-muted">wrong</dt>
+          <dd className="text-lg text-text tabular-nums">{state.wrongWires}</dd>
         </div>
         <div className="flex flex-col gap-1">
           <dt className="text-[10px] uppercase tracking-widest text-muted">hints</dt>

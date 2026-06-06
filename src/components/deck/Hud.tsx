@@ -2,6 +2,7 @@ import type { Architecture } from '@content/architectures';
 import { cn } from '@lib/cn';
 import { useEffect, useState } from 'react';
 import { objectiveProgress } from './board';
+import { scoreState } from './scoring';
 import type { DeckState } from './state';
 
 interface Props {
@@ -24,7 +25,8 @@ function formatElapsed(ms: number): string {
 // interval keyed off startedAt; Date.now() is read here in the island, never in
 // the reducer. mono + lime accent on the shared tokens.
 export default function Hud({ arch, state }: Props) {
-  const p = objectiveProgress(arch, state.edges);
+  const p = objectiveProgress(arch, state.edges, state.placed);
+  const sc = scoreState(arch, state);
   const [now, setNow] = useState(() => Date.now());
 
   // Tick once a second while a session is running so the timer stays live. The
@@ -43,6 +45,16 @@ export default function Hud({ arch, state }: Props) {
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-[12.5px] text-text">{arch.objective}</span>
         <span className="text-[11px] text-lime tabular-nums">{p.pct}%</span>
+      </div>
+
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[11px] uppercase tracking-widest text-muted">grade</span>
+        <span className="text-lg leading-none text-lime tabular-nums">
+          {sc.grade}
+          <span className="ml-2 text-[11px] text-muted">
+            {sc.score}/{sc.max}
+          </span>
+        </span>
       </div>
 
       {/* Determinate progress: a styled overlay bar is the visual, with a
@@ -65,6 +77,12 @@ export default function Hud({ arch, state }: Props) {
           </dd>
         </div>
         <div className="flex items-center gap-1.5">
+          <dt>cards</dt>
+          <dd className="tabular-nums text-text">
+            {state.placed.length}/{state.placed.length + p.missingCards.length}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1.5">
           <dt>moves</dt>
           <dd className="tabular-nums text-text">{state.moves}</dd>
         </div>
@@ -78,7 +96,19 @@ export default function Hud({ arch, state }: Props) {
             {state.hintsUsed}
           </dd>
         </div>
+        {state.wrongWires > 0 && (
+          <div className="flex items-center gap-1.5">
+            <dt>wrong</dt>
+            <dd className="tabular-nums text-fuchsia">{state.wrongWires}</dd>
+          </div>
+        )}
       </dl>
+
+      {p.decoysOnBoard.length > 0 && (
+        <p className="text-[10px] uppercase tracking-widest text-fuchsia">
+          {p.decoysOnBoard.length} placed card(s) do not belong
+        </p>
+      )}
     </div>
   );
 }

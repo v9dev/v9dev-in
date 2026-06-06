@@ -14,6 +14,7 @@ import Diagram from './Diagram';
 import GameMenu from './GameMenu';
 import Hud from './Hud';
 import Terminal from './Terminal';
+import Tray from './Tray';
 import WinPanel from './WinPanel';
 import { bootOrder, hintFor, isComplete, judgeWire, objectiveProgress } from './board';
 import { type Command, type Ctx, type GameVerb, parse } from './commands';
@@ -321,6 +322,9 @@ export default function Deck() {
       <Terminal ctx={ctx} log={state.log} history={state.history} onRun={runCommand} />
       <div className="flex flex-col gap-4">
         {state.phase === 'playing' && <Hud arch={activeArch} state={state} />}
+        {state.phase === 'playing' && (
+          <Tray arch={activeArch} state={state} ctx={ctx} onRun={runCommand} />
+        )}
         {state.phase === 'menu' ? (
           <GameMenu ctx={ctx} onRun={runCommand} />
         ) : state.phase === 'won' ? (

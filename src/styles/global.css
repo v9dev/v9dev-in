@@ -1,10 +1,10 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 /* ─── Fonts (self-hosted via Fontsource) ────────────────────────── */
-@import '@fontsource-variable/bricolage-grotesque';
-@import '@fontsource-variable/geist';
-@import '@fontsource-variable/geist-mono';
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 /* ─── Design tokens ──────────────────────────────────────────────── */
 @theme {
@@ -20,6 +20,7 @@
   --color-lime: #b8ff3a;
   --color-fuchsia: #ff3a8c;
   --color-cyan: #3ae0ff;
+  --color-amber: #ff9f1a;
 
   /* glow tints (low-opacity siblings for shadows / gradients) */
   --color-lime-glow: oklch(0.95 0.25 130 / 0.18);
@@ -27,9 +28,9 @@
   --color-cyan-glow: oklch(0.9 0.18 220 / 0.18);
 
   /* typography */
-  --font-display: 'Bricolage Grotesque Variable', system-ui, -apple-system, sans-serif;
-  --font-sans: 'Geist Variable', system-ui, -apple-system, sans-serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', monospace;
+  --font-display: "Bricolage Grotesque Variable", system-ui, -apple-system, sans-serif;
+  --font-sans: "Geist Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
 
   /* easings */
   --ease-out-expo: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -46,7 +47,7 @@
     background: var(--color-canvas);
     color: var(--color-text);
     font-family: var(--font-sans);
-    font-feature-settings: 'ss01', 'ss02', 'cv11';
+    font-feature-settings: "ss01", "ss02", "cv11";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     color-scheme: dark;
@@ -103,8 +104,13 @@
   }
   /* Variable-font weight breathe */
   @keyframes breathe-weight {
-    0%, 100% { font-variation-settings: 'wght' 600, 'wdth' 100; }
-    50%      { font-variation-settings: 'wght' 700, 'wdth' 105; }
+    0%,
+    100% {
+      font-variation-settings: "wght" 600, "wdth" 100;
+    }
+    50% {
+      font-variation-settings: "wght" 700, "wdth" 105;
+    }
   }
   .breathe {
     animation: breathe-weight 6s var(--ease-in-out) infinite;
@@ -120,7 +126,7 @@
     transition: color 280ms var(--ease-out-expo);
   }
   .link-underline::after {
-    content: '';
+    content: "";
     position: absolute;
     left: 0;
     bottom: -2px;
@@ -146,7 +152,7 @@
     isolation: isolate;
   }
   .link-swipe::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     background: var(--color-lime);
@@ -164,8 +170,12 @@
 
   /* ── Heading shimmer - subtle pass of light across letters ───── */
   @keyframes heading-shimmer {
-    0%    { background-position: -150% 0; }
-    100%  { background-position: 250% 0; }
+    0% {
+      background-position: -150% 0;
+    }
+    100% {
+      background-position: 250% 0;
+    }
   }
   .heading-shimmer {
     background: linear-gradient(
@@ -212,7 +222,7 @@
     color: var(--color-muted);
   }
   .section-label::before {
-    content: '';
+    content: "";
     display: inline-block;
     width: 2.2rem;
     height: 1px;

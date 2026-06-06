@@ -12,9 +12,8 @@ const DIFFICULTY_CLASS: Record<Architecture['difficulty'], string> = {
   easy: 'text-lime',
   medium: 'text-cyan',
   hard: 'text-fuchsia',
-  // Task 7 (GameMenu) gives expert a distinct amber token; until then it reuses
-  // hard's color so the wider union keeps the project typechecking.
-  expert: 'text-fuchsia',
+  // expert gets its own amber token, distinct from hard's fuchsia.
+  expert: 'text-amber',
 };
 
 // The scenario picker shown in the diagram area while phase==='menu'. The `ls`
