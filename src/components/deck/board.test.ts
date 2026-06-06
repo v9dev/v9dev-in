@@ -53,10 +53,11 @@ describe('board', () => {
     expect(canConnect(arch, 'nginx', 'stalwart').ok).toBe(true);
   });
 
-  it('bootOrder: the reference topology reaches every node (no unreachable)', () => {
-    const r = bootOrder(arch, arch.edges);
+  it('bootOrder: the reference topology reaches every real node (no unreachable)', () => {
+    const real = arch.nodes.filter((n) => !n.decoy).map((n) => n.id);
+    const r = bootOrder(arch, arch.edges, real);
     expect(r.unreachable).toEqual([]);
-    expect(r.up).toHaveLength(arch.nodes.length);
+    expect(r.up).toHaveLength(real.length);
     // sources come before what they feed
     expect(r.order.indexOf('internet')).toBeLessThan(r.order.indexOf('nginx'));
     expect(r.order.indexOf('stalwart')).toBeLessThan(r.order.indexOf('sqlite'));
@@ -114,7 +115,8 @@ describe('isComplete', () => {
   });
 
   it('is true when all required edges are present and every node is reachable', () => {
-    expect(isComplete(arch, arch.edges)).toBe(true);
+    const real = arch.nodes.filter((n) => !n.decoy).map((n) => n.id);
+    expect(isComplete(arch, arch.edges, real)).toBe(true);
   });
 });
 
