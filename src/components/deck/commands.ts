@@ -14,7 +14,16 @@ export type Command =
 // High-level game verbs handled by the Deck runner (not the pure reducer).
 // `play`/`reset` need a captured timestamp; `status`/`hint`/`boot` read the
 // live board; `menu` returns to the scenario picker.
-export type GameVerb = 'play' | 'status' | 'hint' | 'boot' | 'menu' | 'reset';
+export type GameVerb =
+  | 'play'
+  | 'status'
+  | 'hint'
+  | 'boot'
+  | 'menu'
+  | 'reset'
+  | 'add'
+  | 'remove'
+  | 'cards';
 
 // Parse context: the current session phase and the loaded scenario (null at the
 // menu). Node-id validation and completion read `arch`; phase gates gameplay
@@ -43,6 +52,9 @@ export const VERBS = [
   'reset',
   'menu',
   'back',
+  'add',
+  'remove',
+  'cards',
   'clear',
 ] as const;
 
@@ -60,6 +72,9 @@ const GAMEPLAY_VERBS = new Set([
   'reset',
   'menu',
   'back',
+  'add',
+  'remove',
+  'cards',
 ]);
 
 // One row per scenario for the `ls` / menu table: id, difficulty, objective.
@@ -77,10 +92,13 @@ export function helpText(_ctx?: Ctx): string[] {
     '  help                show this guide',
     '  ls | games          list the games',
     '  play | start <id>   load a game (unwired)',
+    '  ls | cards          list cards (board + tray) while playing',
+    '  add <id>            place a tray card on the board',
+    '  remove <id>         return a card to the tray',
     '  connect | link <a> <b>      wire node a -> node b',
     '  disconnect | unlink <a> <b> remove the wire a -> b',
     '  status              progress, connections, missing wires',
-    '  hint                reveal the next required wire',
+    '  hint                a nudge - not the answer',
     '  boot | fireup       fire up the server - win if correct',
     '  reset               restart the current game (unwired)',
     '  menu | back         return to the game menu',
@@ -97,9 +115,11 @@ export function parse(input: string, ctx: Ctx): Command {
   switch (verb) {
     case 'help':
       return { kind: 'print', lines: helpText(ctx) };
-    case 'ls':
     case 'games':
       return { kind: 'print', lines: scenarioLines() };
+    case 'ls':
+      if (ctx.phase === 'menu' || !ctx.arch) return { kind: 'print', lines: scenarioLines() };
+      return { kind: 'game', verb: 'cards', echo: 'ls' };
     case 'clear':
       return { kind: 'action', action: { type: 'CLEAR' }, echo: 'clear' };
     case 'play':
@@ -139,6 +159,15 @@ export function parse(input: string, ctx: Ctx): Command {
       // The runner captures Date.now() and dispatches RESET - the reducer never
       // reads the clock, so it stays pure.
       return { kind: 'game', verb: 'reset', echo: 'reset' };
+    case 'cards':
+      return { kind: 'game', verb: 'cards', echo: 'cards' };
+    case 'add':
+    case 'remove': {
+      const id = args[0];
+      if (!id) return { kind: 'error', message: `usage: ${verb} <id>` };
+      if (!ids.has(id)) return { kind: 'error', message: `unknown card: ${id}` };
+      return { kind: 'game', verb, arg: id, echo: `${verb} ${id}` };
+    }
     case 'connect':
     case 'link':
     case 'disconnect':

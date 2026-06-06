@@ -133,6 +133,41 @@ describe('commands.parse - gameplay verbs', () => {
   });
 });
 
+describe('architect-mode commands', () => {
+  const playingCtx = { phase: 'playing', arch: architectureBySlug['stalwart-mail'] } as const;
+
+  it('parses add/remove into game verbs with the id arg', () => {
+    expect(parse('add nginx', playingCtx)).toMatchObject({
+      kind: 'game',
+      verb: 'add',
+      arg: 'nginx',
+    });
+    expect(parse('remove nginx', playingCtx)).toMatchObject({
+      kind: 'game',
+      verb: 'remove',
+      arg: 'nginx',
+    });
+  });
+  it('rejects add/remove for an unknown node', () => {
+    expect(parse('add nope', playingCtx)).toMatchObject({ kind: 'error' });
+  });
+  it('add/remove require a loaded scenario', () => {
+    const menuCtx = { phase: 'menu', arch: null } as const;
+    expect(parse('add nginx', menuCtx)).toMatchObject({ kind: 'error' });
+  });
+  it('ls lists cards while playing, games at the menu', () => {
+    expect(parse('ls', { phase: 'menu', arch: null } as const)).toMatchObject({ kind: 'print' });
+    expect(parse('ls', playingCtx)).toMatchObject({ kind: 'game', verb: 'cards' });
+    expect(parse('cards', playingCtx)).toMatchObject({ kind: 'game', verb: 'cards' });
+  });
+  it('help mentions add/remove and no longer claims hint reveals the wire', () => {
+    const lines = (parse('help', playingCtx) as { lines: string[] }).lines.join('\n');
+    expect(lines).toMatch(/add/);
+    expect(lines).toMatch(/remove/);
+    expect(lines).not.toMatch(/reveal the next required wire/);
+  });
+});
+
 describe('commands.complete', () => {
   it('completes verbs', () => {
     expect(complete('con', playing)).toContain('connect');
