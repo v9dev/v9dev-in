@@ -133,3 +133,44 @@ describe('deckReducer', () => {
     expect(s.wonAt).toBeNull();
   });
 });
+
+describe('architect-mode state', () => {
+  it('PLAY seeds placed with entry cards and zeroes wrong/decoy counters', () => {
+    const s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    expect(s.placed).toEqual(['internet', 'mailclient']); // stalwart non-decoy sources
+    expect(s.edges).toHaveLength(0);
+    expect(s.wrongWires).toBe(0);
+    expect(s.decoyAdds).toBe(0);
+  });
+  it('ADD_CARD places a card, counts a move, and bumps decoyAdds only for a decoy', () => {
+    let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    s = deckReducer(s, { type: 'ADD_CARD', id: 'nginx', decoy: false });
+    expect(s.placed).toContain('nginx');
+    expect(s.moves).toBe(1);
+    expect(s.decoyAdds).toBe(0);
+    const n = s.placed.length;
+    s = deckReducer(s, { type: 'ADD_CARD', id: 'nginx', decoy: false }); // dup
+    expect(s.placed).toHaveLength(n);
+    expect(s.moves).toBe(1);
+    s = deckReducer(s, { type: 'ADD_CARD', id: 'sqlite', decoy: true });
+    expect(s.decoyAdds).toBe(1);
+    expect(s.moves).toBe(2);
+  });
+  it('REMOVE_CARD drops the card and any edges touching it and counts a move', () => {
+    let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    s = deckReducer(s, { type: 'ADD_CARD', id: 'nginx', decoy: false });
+    s = deckReducer(s, { type: 'CONNECT', from: 'internet', to: 'nginx' });
+    expect(s.edges.some((e) => e.id === 'internet->nginx')).toBe(true);
+    s = deckReducer(s, { type: 'REMOVE_CARD', id: 'nginx' });
+    expect(s.placed).not.toContain('nginx');
+    expect(s.edges.some((e) => e.id === 'internet->nginx')).toBe(false);
+  });
+  it('WRONG_WIRE bumps wrongWires only (no edge, no move)', () => {
+    let s = deckReducer(initDeckState(arch), { type: 'PLAY', arch, at: 1 });
+    const m = s.moves;
+    s = deckReducer(s, { type: 'WRONG_WIRE' });
+    expect(s.wrongWires).toBe(1);
+    expect(s.moves).toBe(m);
+    expect(s.edges).toHaveLength(0);
+  });
+});

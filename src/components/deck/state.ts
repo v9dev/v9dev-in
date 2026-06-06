@@ -1,4 +1,5 @@
 import type { ArchEdge, Architecture } from '@content/architectures';
+import { entryCards } from './board';
 
 export interface Pos {
   x: number;
@@ -24,13 +25,20 @@ export interface DeckState {
   edges: ArchEdge[];
   selectedNodeId: string | null;
   armedFrom: string | null;
+  // Architect mode: node ids currently on the board (the tray is every other
+  // non-placed node). A session starts with only the entry card(s) placed.
+  placed: string[];
   // Game session layer. `phase` gates the menu/play/win UI; `moves` counts
-  // connect+disconnect actions; `startedAt`/`wonAt` are ms-epoch timestamps
-  // captured in the React island and passed via action `at` (the reducer stays
-  // pure - it never calls Date.now()).
+  // connect+disconnect+add/remove actions; `startedAt`/`wonAt` are ms-epoch
+  // timestamps captured in the React island and passed via action `at` (the
+  // reducer stays pure - it never calls Date.now()).
   phase: GamePhase;
   moves: number;
   hintsUsed: number;
+  // Cumulative penalty counters for scoring: rejected wire attempts and decoy
+  // placements (decoyAdds counts every decoy placement, even if later removed).
+  wrongWires: number;
+  decoyAdds: number;
   startedAt: number | null;
   wonAt: number | null;
   boot: { running: boolean; up: string[]; unreachable: string[] };
@@ -52,6 +60,9 @@ export type DeckAction =
   | { type: 'MENU' }
   | { type: 'CONNECT'; from: string; to: string }
   | { type: 'DISCONNECT'; from: string; to: string }
+  | { type: 'ADD_CARD'; id: string; decoy: boolean }
+  | { type: 'REMOVE_CARD'; id: string }
+  | { type: 'WRONG_WIRE' }
   | { type: 'MOVE_NODE'; id: string; pos: Pos }
   | { type: 'ARM'; from: string }
   | { type: 'DISARM' }
@@ -74,9 +85,12 @@ export function initDeckState(arch: Architecture): DeckState {
     edges: [],
     selectedNodeId: null,
     armedFrom: null,
+    placed: [],
     phase: 'menu',
     moves: 0,
     hintsUsed: 0,
+    wrongWires: 0,
+    decoyAdds: 0,
     startedAt: null,
     wonAt: null,
     boot: { running: false, up: [], unreachable: [] },
@@ -96,6 +110,9 @@ function startSession(arch: Architecture, at: number): DeckState {
   return {
     ...initDeckState(arch),
     phase: 'playing',
+    placed: entryCards(arch),
+    wrongWires: 0,
+    decoyAdds: 0,
     startedAt: at,
     log: [{ id: 0, kind: 'system', text: `objective: ${arch.objective}` }],
     seq: 1,
@@ -152,6 +169,26 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         boot: { running: false, up: [], unreachable: [] },
         edges: state.edges.filter((e) => e.id !== edgeId(action.from, action.to)),
       };
+    case 'ADD_CARD': {
+      if (state.placed.includes(action.id)) return state;
+      return {
+        ...state,
+        placed: [...state.placed, action.id],
+        moves: state.moves + 1,
+        decoyAdds: action.decoy ? state.decoyAdds + 1 : state.decoyAdds,
+        boot: { running: false, up: [], unreachable: [] },
+      };
+    }
+    case 'REMOVE_CARD':
+      return {
+        ...state,
+        placed: state.placed.filter((id) => id !== action.id),
+        edges: state.edges.filter((e) => e.from !== action.id && e.to !== action.id),
+        moves: state.moves + 1,
+        boot: { running: false, up: [], unreachable: [] },
+      };
+    case 'WRONG_WIRE':
+      return { ...state, wrongWires: state.wrongWires + 1 };
     case 'MOVE_NODE':
       return { ...state, positions: { ...state.positions, [action.id]: action.pos } };
     case 'ARM':
