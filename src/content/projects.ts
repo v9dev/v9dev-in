@@ -48,7 +48,7 @@ export const projects: Project[] = [
     title: 'Apache Superset - OSS Contributor',
     subtitle:
       'Patches into the dashboarding side of Superset: query bug fixes, chart polish, docs. Merged upstream.',
-    outcome: 'PRs merged · ~3k stars project',
+    outcome: 'PRs merged · ~73k stars project',
     stack: ['python', 'react', 'typescript', 'postgres'],
     links: { repo: 'https://github.com/apache/superset' },
     cover: '/work/superset.svg',

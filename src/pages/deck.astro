@@ -1,0 +1,19 @@
+---
+import Base from '@/layouts/Base.astro';
+import Nav from '@components/astro/Nav.astro';
+import Deck from '@components/deck/Deck';
+---
+
+<Base
+  title="v9 deck - fire up the architecture"
+  description="A terminal game: ls the scenarios, play one, then wire and boot the stack in dependency order - all by real command."
+>
+  <Nav />
+  <main id="main" class="container-page py-[var(--section-pad)]">
+    <div class="section-label mb-3 text-lime/80"><span>// v9 deck</span></div>
+    <h1 class="font-display font-semibold leading-[0.95] text-[clamp(1.75rem,4vw,3rem)] mb-5">
+      Fire up the architecture
+    </h1>
+    <Deck client:load />
+  </main>
+</Base>
