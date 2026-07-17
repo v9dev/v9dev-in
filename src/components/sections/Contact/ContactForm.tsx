@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+import { type FormEvent, useState } from 'react';
 
 type Status = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -55,26 +55,9 @@ export default function ContactForm() {
   };
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="grid gap-4"
-      aria-live="polite"
-      noValidate
-    >
-      <Field
-        name="name"
-        label="Your name"
-        required
-        autoComplete="name"
-        maxLength={80}
-      />
-      <Field
-        name="email"
-        label="Email"
-        type="email"
-        required
-        autoComplete="email"
-      />
+    <form onSubmit={onSubmit} className="grid gap-4" aria-live="polite" noValidate>
+      <Field name="name" label="Your name" required autoComplete="name" maxLength={80} />
+      <Field name="email" label="Email" type="email" required autoComplete="email" />
       <Field
         name="message"
         label="What's the project?"
@@ -153,11 +136,7 @@ function Field({
 
   return (
     <div className="relative">
-      {textarea ? (
-        <textarea rows={5} {...sharedProps} />
-      ) : (
-        <input type={type} {...sharedProps} />
-      )}
+      {textarea ? <textarea rows={5} {...sharedProps} /> : <input type={type} {...sharedProps} />}
       <label
         htmlFor={id}
         className="absolute left-4 top-2.5 font-mono text-[11px] uppercase tracking-widest text-muted pointer-events-none peer-placeholder-shown:top-4 peer-placeholder-shown:text-xs peer-placeholder-shown:tracking-wide peer-placeholder-shown:normal-case peer-focus:top-2.5 peer-focus:text-[11px] peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-lime transition-all"
@@ -171,7 +150,7 @@ function Field({
 function SubmitButton({ status }: { status: Status }) {
   const text =
     status === 'sending'
-      ? 'Sending…'
+      ? 'Sending'
       : status === 'sent'
         ? 'Sent ✓'
         : status === 'error'
@@ -184,7 +163,9 @@ function SubmitButton({ status }: { status: Status }) {
       disabled={status === 'sending' || status === 'sent'}
       whileHover={status === 'idle' || status === 'error' ? { scale: 1.03 } : undefined}
       whileTap={status === 'idle' || status === 'error' ? { scale: 0.97 } : undefined}
-      className={`relative inline-flex items-center justify-center min-w-[8rem] rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
+      animate={status === 'sent' ? { scale: [1, 1.1, 1] } : { scale: 1 }}
+      transition={{ duration: 0.45, ease: [0.2, 0.8, 0.2, 1] }}
+      className={`relative inline-flex items-center justify-center min-w-[8rem] overflow-hidden rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
         status === 'sent'
           ? 'bg-lime text-canvas'
           : status === 'error'
@@ -193,7 +174,39 @@ function SubmitButton({ status }: { status: Status }) {
       }`}
       data-cursor-label={status === 'idle' ? 'send' : status}
     >
-      {text}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={status}
+          initial={{ y: 16, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -16, opacity: 0 }}
+          transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+          className="inline-flex items-center gap-0.5"
+        >
+          {text}
+          {status === 'sending' && <SendingDots />}
+        </motion.span>
+      </AnimatePresence>
     </motion.button>
+  );
+}
+
+function SendingDots() {
+  return (
+    <span className="inline-flex items-end gap-0.5 pl-0.5" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="size-[3px] rounded-full bg-current"
+          animate={{ opacity: [0.25, 1, 0.25], y: [0, -2, 0] }}
+          transition={{
+            duration: 0.9,
+            repeat: Number.POSITIVE_INFINITY,
+            delay: i * 0.15,
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
+    </span>
   );
 }

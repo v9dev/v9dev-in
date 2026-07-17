@@ -9,13 +9,11 @@ export const SITE = {
   socials: {
     github: 'https://github.com/v9dev',
     linkedin: 'https://www.linkedin.com/in/v9dev',
-    x: 'https://x.com/v9devx',
   },
 } as const;
 
 export const socialList = [
   { label: 'GitHub', href: SITE.socials.github, icon: 'github' },
   { label: 'LinkedIn', href: SITE.socials.linkedin, icon: 'linkedin' },
-  { label: 'X', href: SITE.socials.x, icon: 'x' },
   { label: 'Email', href: `mailto:${SITE.email}`, icon: 'mail' },
 ] as const;

@@ -1,5 +1,5 @@
 import type { Service } from '@content/services';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { type MotionStyle, motion, useScroll, useTransform } from 'motion/react';
 import { useRef } from 'react';
 
 interface Props {
@@ -46,14 +46,31 @@ export default function ServiceCard({ service, index, total }: Props) {
       <motion.article
         // Scale from the top edge so the outgoing card shrinks UP (its top stays
         // put) as the next one slides over it - keeps the stack edges aligned.
-        style={{ scale, opacity, transformOrigin: 'top center' }}
-        className="relative w-full max-w-5xl overflow-hidden rounded-3xl border border-line/80 bg-elevated/85 p-8 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.45)] backdrop-blur-xl md:p-12 lg:p-16"
+        style={
+          {
+            scale,
+            opacity,
+            transformOrigin: 'top center',
+            '--accent': accent,
+          } as MotionStyle
+        }
+        onPointerMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+          e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+        }}
+        className="group/card relative w-full max-w-5xl overflow-hidden rounded-3xl border border-line/80 bg-elevated/85 p-8 backdrop-blur-xl md:p-12 lg:p-16"
       >
         {/* Accent corner glow */}
         <div
           aria-hidden
           className="absolute -top-32 -right-32 size-[28rem] rounded-full blur-3xl opacity-25 pointer-events-none"
           style={{ background: `radial-gradient(closest-side, ${accent}, transparent 70%)` }}
+        />
+        {/* Cursor spotlight - lights the surface under the pointer */}
+        <div
+          aria-hidden
+          className="card-spotlight pointer-events-none absolute inset-0 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"
         />
 
         <div className="relative flex flex-col md:flex-row md:items-start gap-8 md:gap-12">
@@ -80,11 +97,11 @@ export default function ServiceCard({ service, index, total }: Props) {
               {service.deliverables.map((d) => (
                 <li
                   key={d}
-                  className="flex items-center gap-3 rounded-full border border-line/60 bg-canvas/50 px-4 py-2 font-mono text-xs"
+                  className="deliverable-pill flex items-center gap-3 rounded-full border border-line/60 bg-canvas/50 px-4 py-2 font-mono text-xs"
                 >
                   <span
                     aria-hidden
-                    className="size-1.5 rounded-full"
+                    className="pill-dot size-1.5 rounded-full"
                     style={{ background: accent, boxShadow: `0 0 8px ${accent}` }}
                   />
                   {d}

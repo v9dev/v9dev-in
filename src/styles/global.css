@@ -210,6 +210,72 @@
     animation: wire-flow var(--wire-flow-duration) linear infinite;
   }
 
+  /* ── Card cursor spotlight ──────────────────────────────────────
+     Parent sets --accent plus --spot-x/--spot-y (px, from pointermove).
+     The overlay lights the surface directly under the cursor. */
+  .card-spotlight {
+    background: radial-gradient(
+      16rem circle at var(--spot-x, 50%) var(--spot-y, 50%),
+      color-mix(in srgb, var(--accent, var(--color-lime)) 9%, transparent),
+      transparent 70%
+    );
+  }
+
+  /* ── Deliverable pill hover - accent border + fill + nudge ───── */
+  .deliverable-pill {
+    transition: border-color 320ms var(--ease-out-expo), background-color 320ms var(--ease-out-expo),
+      transform 320ms var(--ease-out-expo);
+  }
+  .deliverable-pill:hover {
+    border-color: color-mix(in srgb, var(--accent, var(--color-lime)) 55%, transparent);
+    background-color: color-mix(in srgb, var(--accent, var(--color-lime)) 7%, transparent);
+    transform: translateX(3px);
+  }
+  .deliverable-pill:hover .pill-dot {
+    animation: pill-dot-pulse 1.1s var(--ease-in-out) infinite;
+  }
+  @keyframes pill-dot-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.6);
+    }
+  }
+
+  /* ── Hero ambient blob drift - slow orbit + breathe ──────────── */
+  @keyframes blob-drift-a {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    33% {
+      transform: translate(4rem, 2.5rem) scale(1.08);
+    }
+    66% {
+      transform: translate(-2.5rem, 4rem) scale(0.95);
+    }
+  }
+  @keyframes blob-drift-b {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    40% {
+      transform: translate(-3.5rem, -2rem) scale(1.06);
+    }
+    75% {
+      transform: translate(2rem, -3.5rem) scale(0.96);
+    }
+  }
+  .blob-drift-a {
+    animation: blob-drift-a 22s var(--ease-in-out) infinite;
+  }
+  .blob-drift-b {
+    animation: blob-drift-b 28s var(--ease-in-out) infinite;
+  }
+
   /* ── Section label dash - used for "01 · Manifesto" markers ─── */
   .section-label {
     display: inline-flex;

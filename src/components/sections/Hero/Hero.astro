@@ -2,6 +2,7 @@
 import HeroKinetic from './HeroKinetic.tsx';
 import HeroSubtitle from './HeroSubtitle.tsx';
 import HeroStatus from './HeroStatus.tsx';
+import HeroAmbient from './HeroAmbient.tsx';
 import MagneticButton from '@components/ui/MagneticButton.tsx';
 
 const subtitle =
@@ -13,19 +14,9 @@ const subtitle =
   data-index="1"
   class="relative isolate min-h-[100svh] flex flex-col items-center justify-center overflow-hidden px-4 pt-28 pb-16"
 >
-  {/* Ambient gradient blobs */}
-  <div aria-hidden class="absolute inset-0 -z-10 pointer-events-none">
-    <div
-      class="absolute -top-40 -left-40 size-[55rem] rounded-full blur-3xl opacity-20"
-      style="background: radial-gradient(closest-side, var(--color-lime), transparent 70%)"
-    >
-    </div>
-    <div
-      class="absolute -bottom-32 -right-40 size-[50rem] rounded-full blur-3xl opacity-15"
-      style="background: radial-gradient(closest-side, var(--color-fuchsia), transparent 70%)"
-    >
-    </div>
-  </div>
+  {/* Ambient gradient blobs - drift + pointer parallax */}
+  <HeroAmbient client:load />
+
 
   {/* Live status */}
   <HeroStatus client:load />

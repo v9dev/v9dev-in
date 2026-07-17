@@ -1,20 +1,24 @@
+import { type MotionValue, motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import {
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-  type MotionValue,
-} from 'motion/react';
 
 interface Props {
   text: string;
 }
 
+// Print-in entry timing. Letters are inked top-to-bottom strictly one at
+// a time, hold wet, then the ink dries back to the hollow outline that
+// the cursor-driven kinetic system expects.
+const PRINT_START = 0.15; // s before the first letter starts printing
+const PRINT_ROLL = 0.16; // s one letter takes to print top-to-bottom
+const PRINT_HOP = 0.05; // s pause between one letter and the next
+const PAINT_HOLD = 0.35;
+const PAINT_DRY = 0.55;
+
 /**
  * Modern, restrained kinetic typography for the hero.
  *
- *  - Letters enter from below with rise + tilt stagger on mount.
+ *  - Letters print in one by one on mount: a top-to-bottom wipe reveals
+ *    each solid glyph, then the fill dries back to the hollow outline.
  *  - Each letter is magnetically pulled toward the cursor (translate).
  *  - Variable font axes (wght/wdth) track cursor distance.
  *  - **Stroke ↔ fill toggle**: letters are hollow outlined when the
@@ -42,6 +46,18 @@ export default function HeroKinetic({ text }: Props) {
 
   const [reduced, setReduced] = useState(false);
   const [wave, setWave] = useState(0);
+  // Entry starts only once fonts are ready so glyph metrics are final.
+  const [go, setGo] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    document.fonts.ready.then(() => {
+      if (alive) setGo(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -87,7 +103,7 @@ export default function HeroKinetic({ text }: Props) {
     <motion.h1
       ref={containerRef}
       onClick={triggerWave}
-      className="font-display font-bold leading-[0.85] tracking-tight text-center select-none flex flex-col sm:flex-row sm:flex-wrap justify-center items-center sm:gap-[0.3em] cursor-pointer will-change-transform"
+      className="relative font-display font-bold leading-[0.85] tracking-tight text-center select-none flex flex-col sm:flex-row sm:flex-wrap justify-center items-center sm:gap-[0.3em] cursor-pointer will-change-transform"
       style={{
         fontSize: 'clamp(3.5rem, 18vw, 18rem)',
         rotateX,
@@ -111,6 +127,7 @@ export default function HeroKinetic({ text }: Props) {
                 cx={cx}
                 cy={cy}
                 wave={wave}
+                go={go}
               />
             );
           })}
@@ -126,10 +143,16 @@ interface LetterProps {
   cx: MotionValue<number>;
   cy: MotionValue<number>;
   wave: number;
+  go: boolean;
 }
 
-function KineticLetter({ char, index, cx, cy, wave }: LetterProps) {
+function KineticLetter({ char, index, cx, cy, wave, go }: LetterProps) {
   const ref = useRef<HTMLSpanElement>(null);
+  // Print-in entry: letters ink strictly in order, each revealed by a
+  // top-to-bottom wipe, then the ink "dries" back to the hollow outline.
+  // Once painted, the cursor-driven stroke/fill system takes over
+  // seamlessly (the paint end state matches the kinetic rest state).
+  const [painted, setPainted] = useState(false);
   const distance = useMotionValue(9999);
   const dx = useMotionValue(0);
   const dy = useMotionValue(0);
@@ -180,44 +203,91 @@ function KineticLetter({ char, index, cx, cy, wave }: LetterProps) {
   const strokeWidth = useTransform(distance, [80, 280], [0, 1.4], { clamp: true });
   // Compose into an inline style (computed string) on the inner span.
   const styleStroke = useTransform(strokeWidth, (w) => `${w}px var(--color-text)`);
-  const styleColor = useTransform(fillOpacity, (o) =>
-    `rgba(245, 245, 240, ${o})`,
-  );
+  const styleColor = useTransform(fillOpacity, (o) => `rgba(245, 245, 240, ${o})`);
+
+  // Full paint timeline: roll down under the roller, hold wet, dry to outline.
+  const paintDelay = PRINT_START + index * (PRINT_ROLL + PRINT_HOP);
+  const paintTotal = PRINT_ROLL + PAINT_HOLD + PAINT_DRY;
 
   return (
     <motion.span
       ref={ref}
       aria-hidden
-      className="inline-block will-change-transform"
-      initial={{ y: '110%', opacity: 0, rotate: -6 }}
-      animate={{ y: '0%', opacity: 1, rotate: 0 }}
-      transition={{
-        delay: 0.05 + index * 0.045,
-        duration: 0.9,
-        ease: [0.2, 0.8, 0.2, 1],
-      }}
+      className="kinetic-letter inline-block will-change-transform"
       style={{ x: pullX, y: pullY, fontVariationSettings: fvs }}
     >
       <motion.span
         // biome-ignore lint/correctness/useExhaustiveDependencies: wave intentional
         key={wave}
-        animate={
-          wave > 0 ? { y: [0, -32, 0], scale: [1, 1.16, 1] } : { y: 0, scale: 1 }
-        }
+        animate={wave > 0 ? { y: [0, -32, 0], scale: [1, 1.16, 1] } : { y: 0, scale: 1 }}
         transition={{
           delay: index * 0.04,
           duration: 0.7,
           ease: [0.2, 0.8, 0.2, 1],
         }}
         className="inline-block"
-        style={{
-          color: styleColor,
-          // text-stroke draws an outline; combined with translucent fill it
-          // gives the "hollow" look at distance.
-          WebkitTextStroke: styleStroke,
-        }}
       >
-        {char === ' ' ? ' ' : char}
+        {painted ? (
+          <motion.span
+            className="inline-block"
+            style={{
+              color: styleColor,
+              // text-stroke draws an outline; combined with translucent fill it
+              // gives the "hollow" look at distance.
+              WebkitTextStroke: styleStroke,
+            }}
+          >
+            {char === ' ' ? ' ' : char}
+          </motion.span>
+        ) : go ? (
+          <motion.span
+            className="inline-block"
+            initial={{
+              clipPath: 'inset(-15% -8% 100% -8%)',
+              color: 'rgba(245, 245, 240, 1)',
+            }}
+            animate={{
+              // Top-to-bottom wipe matching the roller rolling down this
+              // letter, a wet hold, then the fill dries out leaving only
+              // the outline - the kinetic rest state.
+              clipPath: [
+                'inset(-15% -8% 100% -8%)',
+                'inset(-15% -8% -15% -8%)',
+                'inset(-15% -8% -15% -8%)',
+                'inset(-15% -8% -15% -8%)',
+              ],
+              color: [
+                'rgba(245, 245, 240, 1)',
+                'rgba(245, 245, 240, 1)',
+                'rgba(245, 245, 240, 1)',
+                'rgba(245, 245, 240, 0)',
+              ],
+            }}
+            transition={{
+              delay: paintDelay,
+              duration: paintTotal,
+              times: [0, PRINT_ROLL / paintTotal, (PRINT_ROLL + PAINT_HOLD) / paintTotal, 1],
+              // Wipe eases with the roller's roll-down, dry-out stays gentle.
+              ease: ['easeInOut', 'linear', 'easeInOut'],
+            }}
+            onAnimationComplete={() => setPainted(true)}
+            style={{ WebkitTextStroke: '1.4px var(--color-text)' }}
+          >
+            {char === ' ' ? ' ' : char}
+          </motion.span>
+        ) : (
+          // Waiting for fonts/measure - keep the letter hidden.
+          <span
+            className="inline-block"
+            style={{
+              clipPath: 'inset(-15% -8% 100% -8%)',
+              WebkitTextStroke: '1.4px var(--color-text)',
+              color: 'rgba(245, 245, 240, 1)',
+            }}
+          >
+            {char === ' ' ? ' ' : char}
+          </span>
+        )}
       </motion.span>
     </motion.span>
   );
