@@ -53,12 +53,13 @@
     color-scheme: dark;
   }
   html {
-    /* clip (not hidden): forbids horizontal scrolling entirely - the
-       silicon board intentionally spills past the viewport edge. */
+    /* clip (not hidden): kills horizontal scrolling without creating a
+       scroll container - the silicon board intentionally spills past
+       the viewport edge. Do NOT also set overflow-x on body: combined
+       with a non-visible value here it would force body's overflow-y
+       to auto, turning body into a scroll container and silently
+       breaking every position:sticky on the page. */
     overflow-x: clip;
-  }
-  body {
-    overflow-x: hidden;
   }
   ::selection {
     background: var(--color-lime);

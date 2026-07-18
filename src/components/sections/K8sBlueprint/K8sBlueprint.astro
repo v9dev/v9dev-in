@@ -1,0 +1,569 @@
+---
+/**
+ * K8S BLUEPRINT - Kubernetes explained as a self-drawing engineering
+ * blueprint. Pure line-art SVG (fill: none, thin strokes) in the style
+ * of a technical drawing, choreographed by anime.js with its SVG
+ * drawable API: strokes draw themselves in, a manifest flies to the
+ * API server, the scheduler binds pods, a service balances traffic,
+ * a pod dies and the control loop heals it, the deployment scales
+ * 3 → 5, then the whole drawing erases and starts again.
+ *
+ * A tick-strip timeline (bottom right) shows playback position and can
+ * be dragged to scrub the whole story. Pauses offscreen; static under
+ * prefers-reduced-motion; zero React runtime.
+ */
+
+const NODES = [
+  { id: 1, y: 48 },
+  { id: 2, y: 210 },
+  { id: 3, y: 372 },
+];
+
+/** [id, nodeIndex, slot] - slot 0 left, 1 right */
+const PODS: Array<[string, number, number]> = [
+  ['p11', 0, 0],
+  ['p12', 0, 1],
+  ['p21', 1, 0],
+  ['p22', 1, 1],
+  ['p31', 2, 0],
+  ['p32', 2, 1],
+];
+
+const podX = (slot: number) => 596 + slot * 132;
+const podY = (node: number) => NODES[node].y + 54;
+
+const CAPTIONS = [
+  'drawing the cluster',
+  'kubectl apply -f deploy.yaml',
+  'scheduler binds 3 pods',
+  'service balances traffic',
+  'pod dies · control loop heals',
+  'scale: replicas 3 → 5',
+  'declared state == actual state',
+  'erase · loop',
+];
+---
+
+<section id="k8s" aria-label="Animated blueprint explaining how Kubernetes works: a cluster draws itself, schedules pods, balances traffic, self-heals and scales" class="relative py-[var(--section-pad)]">
+  <div class="container-page">
+    <div class="section-label text-cyan/80"><span>// blueprint</span></div>
+    <div class="mt-3 flex flex-wrap items-end justify-between gap-4">
+      <p class="max-w-md font-display text-2xl md:text-3xl font-semibold leading-tight text-balance">
+        How Kubernetes <span class="text-cyan">actually works.</span>
+      </p>
+      <p class="max-w-xs font-mono text-[11px] uppercase tracking-widest leading-relaxed text-muted">
+        one control loop · drawn in real time · drag the strip to scrub
+      </p>
+    </div>
+
+    <div class="relative mt-8">
+      <div class="k8s-stage">
+        <div class="k8s-tilt" id="k8s-tilt">
+          <svg
+            id="k8s-svg"
+        viewBox="0 0 1000 560"
+        class="h-auto w-full"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        {/* ── control plane ─────────────────────────────────────── */}
+        <g class="k-stroke">
+          <rect class="k-draw k-cp k-dashed" x="36" y="64" width="270" height="430" rx="16" />
+          <text class="k-label" x="52" y="48">control-plane</text>
+
+          {/* kube-apiserver */}
+          <rect class="k-draw k-cp" x="66" y="96" width="210" height="64" rx="10" />
+          <circle class="k-draw k-cp" cx="276" cy="128" r="5" />
+          <text class="k-label" x="86" y="132">kube-apiserver</text>
+
+          {/* etcd - cylinder */}
+          <ellipse class="k-draw k-cp" cx="121" cy="216" rx="48" ry="14" />
+          <path class="k-draw k-cp" d="M 73 216 V 292 A 48 14 0 0 0 169 292 V 216" />
+          <ellipse class="k-draw k-cp k-faint" cx="121" cy="252" rx="48" ry="14" />
+          <text class="k-label" x="104" y="334">etcd</text>
+
+          {/* kube-scheduler - dial */}
+          <circle class="k-draw k-cp" cx="232" cy="252" r="34" />
+          <circle class="k-draw k-cp k-faint" cx="232" cy="252" r="24" />
+          <g id="sched-ticks">
+            {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => {
+              const r1 = 26;
+              const r2 = 33;
+              const rad = (a * Math.PI) / 180;
+              return (
+                <line
+                  class="k-draw k-cp"
+                  x1={232 + r1 * Math.cos(rad)}
+                  y1={252 + r1 * Math.sin(rad)}
+                  x2={232 + r2 * Math.cos(rad)}
+                  y2={252 + r2 * Math.sin(rad)}
+                />
+              );
+            })}
+          </g>
+          <text class="k-label" x="196" y="334">scheduler</text>
+
+          {/* controller-manager - the control loop */}
+          <circle class="k-draw k-cp" cx="150" cy="416" r="26" />
+          <path id="ctrl-loop" class="k-draw k-cp" d="M 150 378 A 38 38 0 1 1 112 416" />
+          <path class="k-draw k-cp" d="M 104 402 L 112 416 L 122 406" />
+          <text class="k-label" x="92" y="474">controller-manager</text>
+        </g>
+
+        {/* ── service + ingress traffic ─────────────────────────── */}
+        <g class="k-stroke">
+          <path class="k-draw k-svc" d="M 470 10 L 512 46 L 470 82 L 428 46 Z" />
+          <text class="k-label" x="446" y="51">svc</text>
+          <line class="k-draw k-svc" x1="336" y1="46" x2="420" y2="46" />
+          <path class="k-draw k-svc" d="M 410 38 L 422 46 L 410 54" />
+          <text class="k-label" x="322" y="30">traffic</text>
+        </g>
+
+        {/* ── api-server → kubelet wiring loom ──────────────────── */}
+        <g class="k-stroke">
+          <path id="w-n1" class="k-draw k-wire" d="M 282 128 L 436 128 L 436 118 L 560 118" />
+          <path id="w-n2" class="k-draw k-wire" d="M 282 128 L 420 128 L 420 280 L 560 280" />
+          <path id="w-n3" class="k-draw k-wire" d="M 282 128 L 404 128 L 404 442 L 560 442" />
+        </g>
+
+        {/* ── scheduler assignment arcs (dashed, transient) ─────── */}
+        <g class="k-stroke">
+          <path id="s-p1" class="k-draw k-arc k-dashed" d="M 262 232 Q 460 150 596 120" />
+          <path id="s-p2" class="k-draw k-arc k-dashed" d="M 266 252 Q 470 250 596 282" />
+          <path id="s-p3" class="k-draw k-arc k-dashed" d="M 262 272 Q 460 380 596 444" />
+        </g>
+
+        {/* ── worker nodes ──────────────────────────────────────── */}
+        {NODES.map((n) => (
+          <g class="k-stroke">
+            <rect class="k-draw k-node" x="560" y={n.y} width="400" height="140" rx="14" />
+            <text class="k-label" x="580" y={n.y + 30}>node-{n.id}</text>
+            <rect class="k-draw k-node" x="856" y={n.y + 14} width="86" height="28" rx="8" />
+            <text class="k-label k-small" x="868" y={n.y + 32}>kubelet</text>
+          </g>
+        ))}
+        {/* workers dimension bracket */}
+        <g class="k-stroke">
+          <line class="k-draw k-node k-faint" x1="974" y1="48" x2="974" y2="512" />
+          <line class="k-draw k-node k-faint" x1="968" y1="48" x2="980" y2="48" />
+          <line class="k-draw k-node k-faint" x1="968" y1="512" x2="980" y2="512" />
+          <text class="k-label k-small" x="928" y="36">workers ×3</text>
+        </g>
+
+        {/* ── pods ──────────────────────────────────────────────── */}
+        {PODS.map(([id, node, slot]) => {
+          const x = podX(slot);
+          const y = podY(node);
+          return (
+            <g id={id} class="k-stroke k-pod">
+              <rect class="k-draw pod-frame" x={x} y={y} width="104" height="64" rx="10" />
+              <circle class="k-draw pod-ring" cx={x + 30} cy={y + 32} r="11" />
+              <circle class="pod-dot" cx={x + 30} cy={y + 32} r="4.5" />
+              <text class="k-label k-small" x={x + 52} y={y + 37}>pod</text>
+            </g>
+          );
+        })}
+        {/* the X drawn over the dying pod (p21) */}
+        <g id="x21" class="k-stroke">
+          <line class="k-draw k-x" x1={podX(0) + 14} y1={podY(1) + 10} x2={podX(0) + 90} y2={podY(1) + 54} />
+          <line class="k-draw k-x" x1={podX(0) + 90} y1={podY(1) + 10} x2={podX(0) + 14} y2={podY(1) + 54} />
+        </g>
+
+        {/* ── kubectl manifest chip ─────────────────────────────── */}
+        <g id="manifest" class="k-stroke">
+          <rect class="k-manifest" x="70" y="6" width="46" height="56" rx="6" />
+          <line class="k-manifest" x1="80" y1="22" x2="106" y2="22" />
+          <line class="k-manifest" x1="80" y1="34" x2="106" y2="34" />
+          <line class="k-manifest" x1="80" y1="46" x2="98" y2="46" />
+          <text class="k-label k-small" x="60" y="78">deploy.yaml</text>
+        </g>
+
+        {/* replicas annotation */}
+        <text class="k-label" x="340" y="536">replicas: <tspan id="k8s-replicas">3</tspan></text>
+
+        {/* traffic dots */}
+        <circle class="k-dot" id="dot-a" r="5" />
+        <circle class="k-dot" id="dot-b" r="5" />
+        <circle class="k-dot" id="dot-c" r="5" />
+      </svg>
+        </div>
+      </div>
+
+      {/* HUD: caption ticker + scrub strip */}
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.25em] text-muted">
+          <span>phase:</span>
+          <span class="k8s-cap-window">
+            <span class="k8s-cap-list" id="k8s-captions">
+              {CAPTIONS.map((c) => (
+                <span class="k8s-cap text-cyan">{c}</span>
+              ))}
+            </span>
+          </span>
+        </div>
+        <div
+          id="k8s-scrub"
+          role="slider"
+          aria-label="Scrub the Kubernetes animation timeline"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          tabindex="0"
+          data-cursor-label="scrub"
+        >
+          <div id="k8s-playhead"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  #k8s-svg {
+    max-height: 72vh;
+  }
+
+  /* The drawing lies on a 3D drafting table - gentle base tilt, with
+     pointer parallax steering it from the script. Angles stay small so
+     the annotations remain readable. */
+  .k8s-stage {
+    perspective: 1600px;
+    perspective-origin: 50% 38%;
+  }
+  .k8s-tilt {
+    transform-style: preserve-3d;
+    transform: rotateX(22deg) rotateZ(-4deg);
+    will-change: transform;
+  }
+
+  .k-stroke {
+    stroke: rgb(245 245 240 / 0.55);
+    stroke-width: 1.3;
+  }
+  .k-faint {
+    stroke: rgb(245 245 240 / 0.28);
+  }
+  .k-dashed {
+    stroke-dasharray: 5 7;
+  }
+  .k-wire {
+    stroke: rgb(58 224 255 / 0.4);
+  }
+  .k-arc {
+    stroke: rgb(245 245 240 / 0.45);
+  }
+  .k-svc {
+    stroke: rgb(58 224 255 / 0.6);
+  }
+  .k-x {
+    stroke: var(--color-fuchsia);
+    stroke-width: 1.8;
+  }
+  .k-manifest {
+    stroke: var(--color-lime);
+    stroke-width: 1.2;
+  }
+  #manifest {
+    opacity: 0;
+  }
+  .k-label {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    fill: var(--color-muted);
+    stroke: none;
+  }
+  .k-small {
+    font-size: 10.5px;
+  }
+  .pod-dot {
+    fill: var(--color-lime);
+    stroke: none;
+    opacity: 0;
+  }
+  .k-dot {
+    fill: var(--color-cyan);
+    stroke: none;
+    opacity: 0;
+    filter: drop-shadow(0 0 6px var(--color-cyan));
+  }
+
+  /* caption ticker */
+  .k8s-cap-window {
+    display: inline-block;
+    height: 16px;
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+  .k8s-cap-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .k8s-cap {
+    height: 16px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  /* scrub strip - anime.js style tick bar */
+  #k8s-scrub {
+    position: relative;
+    width: min(20rem, 60vw);
+    height: 34px;
+    border-radius: 8px;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgb(245 245 240 / 0.22) 0 1.5px,
+        transparent 1.5px 7px
+      ),
+      #101018;
+    background-blend-mode: normal;
+    border: 1px solid var(--color-line);
+    cursor: ew-resize;
+    touch-action: none;
+    overflow: hidden;
+  }
+  #k8s-scrub:focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 3px;
+  }
+  #k8s-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background: var(--color-fuchsia);
+    box-shadow: 0 0 8px var(--color-fuchsia);
+  }
+</style>
+
+<script>
+  import { animate, createTimeline, stagger, svg, utils } from 'animejs';
+
+  const section = document.getElementById('k8s');
+  const scrub = document.getElementById('k8s-scrub');
+  const playhead = document.getElementById('k8s-playhead');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (section && scrub && playhead && !reduced) {
+    const LIME = '#b8ff3a';
+    const FUCHSIA = '#ff3a8c';
+    // Legacy comma syntax - anime's color parser rejects the modern
+    // space/slash rgb() form.
+    const BASE = 'rgba(245, 245, 240, 0.55)';
+
+    const draw = (sel: string) => svg.createDrawable(sel);
+
+    // Blank slate - everything erased, labels and pods hidden.
+    utils.set(draw('.k-draw'), { draw: '0 0' });
+    utils.set('.k-label', { opacity: 0 });
+    utils.set('.k-pod', { opacity: 0 });
+    utils.set('#x21', { opacity: 1 });
+    utils.set('#manifest', { opacity: 0 });
+
+    const capEl = '#k8s-captions';
+    const podC = (slot: number, node: number) => ({
+      x: 596 + slot * 132 + 30,
+      y: [48, 210, 372][node] + 54 + 32,
+    });
+
+    const tl = createTimeline({
+      loop: true,
+      defaults: { ease: 'inOutQuad' },
+      onUpdate: (self) => {
+        // A looped timeline's total duration is Infinity - use the
+        // single-iteration clock for progress.
+        const p = self.iterationDuration ? self.iterationCurrentTime / self.iterationDuration : 0;
+        playhead.style.left = `${Math.min(99, p * 100)}%`;
+        scrub.setAttribute('aria-valuenow', String(Math.round(p * 100)));
+      },
+    });
+
+    const cap = (idx: number, atMs: number) => {
+      tl.add(capEl, { y: -16 * idx, duration: 260, ease: 'outExpo' }, atMs);
+    };
+
+    /** Spawn one pod: outline draws in, container dot lights lime. */
+    const spawnPod = (id: string, atMs: number) => {
+      tl.add(`#${id}`, { opacity: { from: 0, to: 1, duration: 100 } }, atMs);
+      tl.add(draw(`#${id} .k-draw`), { draw: '0 1', duration: 520, delay: stagger(90) }, atMs);
+      tl.add(`#${id} .k-label`, { opacity: { from: 0, to: 0.9, duration: 260 } }, atMs + 420);
+      tl.add(`#${id} .pod-dot`, { opacity: { from: 0, to: 1, duration: 200 } }, atMs + 560);
+    };
+
+    /** One traffic dot: svc → across → down to a pod ring. */
+    const shoot = (dot: string, slot: number, node: number, atMs: number) => {
+      const c = podC(slot, node);
+      tl.add(dot, { opacity: { from: 0, to: 1, duration: 80 }, x: { from: 512, to: 512, duration: 80 }, y: { from: 46, to: 46, duration: 80 } }, atMs);
+      tl.add(dot, { x: { to: 540 }, duration: 140, ease: 'inQuad' }, atMs + 80);
+      tl.add(dot, { x: { to: c.x }, y: { to: c.y }, duration: 420, ease: 'inOutQuad' }, atMs + 220);
+      tl.add(dot, { opacity: 0, duration: 90 }, atMs + 640);
+    };
+
+    // ── phase 1 · the cluster draws itself ────────────────────────
+    cap(0, 0);
+    tl.add(draw('.k-cp'), { draw: '0 1', duration: 1500, delay: stagger(55) }, 0);
+    tl.add(draw('.k-node'), { draw: '0 1', duration: 1200, delay: stagger(45) }, 500);
+    tl.add(draw('.k-svc'), { draw: '0 1', duration: 700, delay: stagger(90) }, 1300);
+    tl.add(draw('.k-wire'), { draw: '0 1', duration: 800, delay: stagger(140) }, 1500);
+    tl.add('svg#k8s-svg .k-label', { opacity: { from: 0, to: 0.9, duration: 500 }, delay: stagger(28) }, 1700);
+
+    // ── phase 2 · kubectl apply ───────────────────────────────────
+    cap(1, 2800);
+    tl.add('#manifest', {
+      opacity: [{ from: 0, to: 1, duration: 200 }, { to: 1, duration: 600 }, { to: 0, duration: 250 }],
+      x: { from: 0, to: 76, duration: 850 },
+      y: { from: 0, to: 66, duration: 850 },
+    }, 2800);
+    tl.add('svg#k8s-svg rect.k-cp', {
+      stroke: [{ to: LIME, duration: 200 }, { to: BASE, duration: 500 }],
+    }, 3650);
+    // etcd persists the object
+    tl.add('svg#k8s-svg ellipse.k-cp', {
+      stroke: [{ to: LIME, duration: 220 }, { to: BASE, duration: 600 }],
+      delay: stagger(90),
+    }, 3900);
+
+    // ── phase 3 · scheduler binds pods ────────────────────────────
+    cap(2, 4600);
+    tl.add('#sched-ticks', {
+      rotate: { from: 0, to: 360, duration: 900 },
+      svgOrigin: '232 252',
+      ease: 'inOutSine',
+    }, 4600);
+    tl.add(draw('.k-arc'), { draw: '0 1', duration: 650, delay: stagger(200) }, 4700);
+    spawnPod('p11', 5100);
+    spawnPod('p21', 5350);
+    spawnPod('p31', 5600);
+    tl.add(draw('.k-arc'), { draw: '1 1', duration: 500, delay: stagger(120) }, 6400);
+
+    // ── phase 4 · service balances traffic ────────────────────────
+    cap(3, 7000);
+    shoot('#dot-a', 0, 0, 7000);
+    shoot('#dot-b', 0, 1, 7350);
+    shoot('#dot-c', 0, 2, 7700);
+    shoot('#dot-a', 0, 0, 8050);
+
+    // ── phase 5 · a pod dies, the control loop heals ──────────────
+    cap(4, 9000);
+    tl.add('#p21 .pod-frame', {
+      stroke: [
+        { to: FUCHSIA, duration: 120 },
+        { to: BASE, duration: 120 },
+        { to: FUCHSIA, duration: 120 },
+      ],
+    }, 9000);
+    tl.add('#p21 .pod-dot', { opacity: 0, duration: 200 }, 9200);
+    tl.add(draw('#x21 .k-x'), { draw: '0 1', duration: 380, delay: stagger(140) }, 9400);
+    // the controller notices - its loop spins
+    tl.add('#ctrl-loop', {
+      rotate: { from: 0, to: 360, duration: 800 },
+      svgOrigin: '150 416',
+      ease: 'inOutSine',
+    }, 9700);
+    tl.add('#p21', { opacity: 0.18, duration: 500 }, 10300);
+    spawnPod('p32', 10600);
+
+    // ── phase 6 · scale 3 → 5 ─────────────────────────────────────
+    cap(5, 11800);
+    tl.call(() => {
+      const r = document.getElementById('k8s-replicas');
+      if (r) r.textContent = '5';
+    }, 11900);
+    spawnPod('p12', 12000);
+    spawnPod('p22', 12300);
+    shoot('#dot-b', 1, 0, 13000);
+    shoot('#dot-c', 1, 2, 13350);
+
+    // ── phase 7 · steady state ────────────────────────────────────
+    cap(6, 14200);
+    tl.add('svg#k8s-svg .pod-dot', {
+      opacity: [{ to: 0.4, duration: 300 }, { to: 1, duration: 300 }],
+      delay: stagger(90),
+    }, 14300);
+
+    // ── phase 8 · erase and loop ──────────────────────────────────
+    cap(7, 15400);
+    tl.call(() => {
+      const r = document.getElementById('k8s-replicas');
+      if (r) r.textContent = '3';
+    }, 15500);
+    tl.add('#p21', { opacity: 1, duration: 200 }, 15400);
+    tl.add('svg#k8s-svg .k-label, .k-pod, #x21', { opacity: 0, duration: 450 }, 15500);
+    tl.add(draw('.k-draw'), { draw: '1 1', duration: 750, delay: stagger(6) }, 15600);
+    tl.add(capEl, { y: 0, duration: 260, ease: 'outExpo' }, 16500);
+
+    // ── scrub strip: drag or click to seek ────────────────────────
+    let scrubbing = false;
+    const seek = (clientX: number) => {
+      const r = scrub.getBoundingClientRect();
+      const p = utils.clamp((clientX - r.left) / r.width, 0, 0.999);
+      tl.currentTime = p * tl.iterationDuration;
+    };
+    scrub.addEventListener('pointerdown', (e) => {
+      scrubbing = true;
+      scrub.setPointerCapture(e.pointerId);
+      tl.pause();
+      seek(e.clientX);
+    });
+    scrub.addEventListener('pointermove', (e) => {
+      if (scrubbing) seek(e.clientX);
+    });
+    const release = () => {
+      if (!scrubbing) return;
+      scrubbing = false;
+      tl.play();
+    };
+    scrub.addEventListener('pointerup', release);
+    scrub.addEventListener('pointercancel', release);
+    scrub.addEventListener('keydown', (e) => {
+      const step = tl.iterationDuration * 0.04;
+      if (e.key === 'ArrowRight') {
+        tl.currentTime = Math.min(tl.iterationDuration - 1, tl.iterationCurrentTime + step);
+      } else if (e.key === 'ArrowLeft') {
+        tl.currentTime = Math.max(0, tl.iterationCurrentTime - step);
+      }
+    });
+
+    // ── 3D drafting-table parallax: the plane follows the pointer ─
+    const tilt = document.getElementById('k8s-tilt');
+    if (tilt) {
+      const pose = { rx: 22, rz: -4 };
+      const target = { rx: 22, rz: -4 };
+      section.addEventListener('pointermove', (e) => {
+        const r = section.getBoundingClientRect();
+        const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+        const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+        target.rx = 22 + ny * -5;
+        target.rz = -4 + nx * 4;
+      });
+      section.addEventListener('pointerleave', () => {
+        target.rx = 22;
+        target.rz = -4;
+      });
+      const settle = () => {
+        pose.rx += (target.rx - pose.rx) * 0.07;
+        pose.rz += (target.rz - pose.rz) * 0.07;
+        utils.set(tilt, { rotateX: pose.rx, rotateZ: pose.rz });
+        requestAnimationFrame(settle);
+      };
+      requestAnimationFrame(settle);
+    }
+
+    // ── run only while on screen ──────────────────────────────────
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !scrubbing) tl.play();
+          else tl.pause();
+        }
+      },
+      { threshold: 0.15 },
+    );
+    io.observe(section);
+  }
+</script>
