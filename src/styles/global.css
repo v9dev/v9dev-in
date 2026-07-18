@@ -52,6 +52,11 @@
     -webkit-font-smoothing: antialiased;
     color-scheme: dark;
   }
+  html {
+    /* clip (not hidden): forbids horizontal scrolling entirely - the
+       silicon board intentionally spills past the viewport edge. */
+    overflow-x: clip;
+  }
   body {
     overflow-x: hidden;
   }

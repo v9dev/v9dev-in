@@ -73,7 +73,7 @@ const BITS = [
 ];
 ---
 
-<section id="silicon" aria-label="Animated 3D scene of a request travelling across computer hardware, with a CPU teardown showing binary counting" class="relative overflow-hidden">
+<section id="silicon" aria-label="Animated 3D scene of a request travelling across computer hardware, with a CPU teardown showing binary counting" class="relative">
   <div class="container-page relative z-10 flex items-start justify-between gap-6 pt-10">
     <div>
       <div class="section-label text-lime/80"><span>// silicon</span></div>
@@ -208,8 +208,12 @@ const BITS = [
 </section>
 
 <style>
+  /* No overflow clipping - the board may spill past the section while
+     zoomed, rotated, or torn down. body{overflow-x:hidden} guards the
+     page edge, and the whole 3D subtree is pointer-transparent so spill
+     never blocks content around it. */
   #silicon {
-    height: clamp(30rem, 72vh, 46rem);
+    height: clamp(32rem, 84vh, 52rem);
   }
 
   .sil-viewport {
@@ -219,6 +223,11 @@ const BITS = [
     perspective-origin: 50% 30%;
     cursor: grab;
     touch-action: pan-y;
+  }
+  /* Drag is handled by the viewport itself; the scene never eats
+     clicks - neither inside the section nor where it spills out. */
+  .sil-viewport > * {
+    pointer-events: none;
   }
   .sil-viewport.dragging {
     cursor: grabbing;
