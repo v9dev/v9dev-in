@@ -30,6 +30,7 @@
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@radix-ui/react-dialog": "^1.1.15",
     "@tailwindcss/vite": "^4.0.0",
+    "animejs": "^4.5.0",
     "astro": "^5.2.0",
     "clsx": "^2.1.1",
     "gsap": "^3.13.0",
@@ -63,6 +64,8 @@
     "wrangler": "^3.99.0"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,astro,json,css}": ["biome check --write --no-errors-on-unmatched"]
+    "*.{js,jsx,ts,tsx,astro,json,css}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   }
 }

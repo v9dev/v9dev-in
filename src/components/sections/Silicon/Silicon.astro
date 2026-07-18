@@ -1,0 +1,583 @@
+---
+/**
+ * SILICON - an ambient, self-running 3D scene of what a request looks
+ * like at the hardware level. Real CSS 3D geometry (perspective +
+ * preserve-3d cuboids with per-face lighting), choreographed by anime.js:
+ * packets ride the traces NIC → CPU → RAM/NVMe → NIC while the die's
+ * 16-core grid ripples and the pipeline ticker steps FETCH → WRITE-BACK.
+ *
+ * Fully automatic - no interaction required. Pauses offscreen, goes
+ * static under prefers-reduced-motion, needs zero React runtime.
+ */
+
+interface Part {
+  id: string;
+  x: number;
+  y: number;
+  w: number; // footprint width (board x)
+  d: number; // footprint depth (board y)
+  h: number; // extrusion height (z)
+}
+
+const CPU: Part = { id: 'cpu', x: 340, y: 190, w: 240, d: 240, h: 34 };
+const DIMMS: Part[] = [
+  { id: 'dimm-a', x: 656, y: 180, w: 16, d: 250, h: 52 },
+  { id: 'dimm-b', x: 700, y: 180, w: 16, d: 250, h: 52 },
+];
+const NIC: Part = { id: 'nic', x: 100, y: 430, w: 130, d: 110, h: 22 };
+const NVME: Part = { id: 'nvme', x: 600, y: 460, w: 190, d: 80, h: 14 };
+const IO: Part = { id: 'io', x: 300, y: 570, w: 320, d: 18, h: 10 };
+const CAPS: Part[] = [0, 1, 2, 3, 4].map((i) => ({
+  id: `cap-${i}`,
+  x: 268,
+  y: 210 + i * 52,
+  w: 26,
+  d: 26,
+  h: 30,
+}));
+
+const PARTS: Part[] = [CPU, ...DIMMS, NIC, NVME, IO, ...CAPS];
+
+/** Copper traces on the board plane. [x, y, w, h, lane] */
+const TRACES: Array<[number, number, number, number, string]> = [
+  [160, 310, 6, 122, 'in'], // nic ↑ toward cpu row
+  [160, 306, 182, 6, 'in'], // → into cpu west edge
+  [580, 306, 78, 6, 'mem'], // cpu east edge → dimms
+  [455, 430, 6, 66, 'store'], // cpu south edge ↓
+  [455, 490, 148, 6, 'store'], // → toward nvme
+];
+
+const STAGES = ['fetch', 'decode', 'execute', 'memory', 'write-back'];
+
+const SPECS = [
+  { label: 'cpu · 16-core die', color: 'var(--color-lime)' },
+  { label: 'ddr5 · 2× dimm', color: 'var(--color-cyan)' },
+  { label: 'nvme · gen4 ×4', color: 'var(--color-fuchsia)' },
+  { label: 'nic · packets in/out', color: 'var(--color-amber)' },
+];
+---
+
+<section id="silicon" aria-label="Animated 3D scene of a request travelling across computer hardware" class="relative overflow-hidden">
+  <div class="container-page relative z-10 pt-10">
+    <div class="section-label text-lime/80"><span>// silicon</span></div>
+    <p class="mt-3 max-w-md font-display text-2xl md:text-3xl font-semibold leading-tight text-balance">
+      Every request ends up <span class="text-lime">at the metal.</span>
+    </p>
+  </div>
+
+  <div class="sil-viewport" aria-hidden="true">
+    <div class="sil-shadow"></div>
+    <div class="sil-scale">
+      <div class="sil-float">
+        <div class="sil-board" id="sil-board">
+          <div class="sil-pcb"></div>
+
+          {TRACES.map(([x, y, w, h, lane]) => (
+            <div
+              class="sil-trace"
+              data-trace={lane}
+              style={`left:${x}px; top:${y}px; width:${w}px; height:${h}px;`}
+            >
+            </div>
+          ))}
+
+          <div class="sil-heat" id="sil-heat"></div>
+
+          {PARTS.map((p) => (
+            <div
+              class={`sil-cub sil-${p.id.replace(/-\d$/, '').replace(/-[ab]$/, '')}`}
+              data-part={p.id}
+              style={`left:${p.x}px; top:${p.y}px; width:${p.w}px; height:${p.d}px; --h:${p.h}px;`}
+            >
+              <div class="face f-top">
+                {p.id === 'cpu' && (
+                  <div class="sil-die">
+                    {Array.from({ length: 16 }).map(() => (
+                      <div class="sil-core"></div>
+                    ))}
+                  </div>
+                )}
+                {p.id.startsWith('dimm') && <div class="sil-dimm-glow"></div>}
+                {p.id === 'nic' && <span class="sil-chip-label">NIC</span>}
+                {p.id === 'nvme' && <span class="sil-chip-label">NVME</span>}
+              </div>
+              <div class="face f-s"></div>
+              <div class="face f-e"></div>
+              <div class="face f-n"></div>
+              <div class="face f-w"></div>
+            </div>
+          ))}
+
+          {/* Traveling packets - positioned by the script */}
+          <div class="sil-pkt" id="pkt-in" style="--pk: var(--color-lime)"></div>
+          <div class="sil-pkt" id="pkt-mem" style="--pk: var(--color-cyan)"></div>
+          <div class="sil-pkt" id="pkt-store" style="--pk: var(--color-fuchsia)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* HUD - flat overlay, not part of the 3D scene */}
+  <div class="pointer-events-none absolute inset-x-0 bottom-6 z-10">
+    <div class="container-page flex flex-wrap items-end justify-between gap-4">
+      <div class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.25em] text-muted">
+        <span>pipeline:</span>
+        <span class="sil-stage-window">
+          <span class="sil-stage-list" id="sil-stages">
+            {STAGES.map((s) => (
+              <span class="sil-stage text-lime">{s}</span>
+            ))}
+          </span>
+        </span>
+      </div>
+      <ul class="hidden gap-x-6 gap-y-1.5 sm:flex sm:flex-wrap">
+        {SPECS.map((s) => (
+          <li class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
+            <span
+              class="inline-block size-1.5 rounded-full"
+              style={`background:${s.color}; box-shadow:0 0 8px ${s.color}`}
+            >
+            </span>
+            {s.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  #silicon {
+    height: clamp(30rem, 72vh, 46rem);
+  }
+
+  .sil-viewport {
+    position: absolute;
+    inset: 0;
+    perspective: 1400px;
+    perspective-origin: 50% 30%;
+  }
+
+  /* Soft ground shadow behind the whole scene */
+  .sil-shadow {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    width: 46rem;
+    height: 11rem;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent 70%);
+    filter: blur(28px);
+  }
+
+  .sil-scale,
+  .sil-float,
+  .sil-board,
+  .sil-cub {
+    transform-style: preserve-3d;
+  }
+
+  /* Absolutely centered: grid/flex centering start-aligns items that
+     overflow the container (the mobile case). scale3d keeps z in
+     proportion - a 2D scale() would leave z at full size and wildly
+     exaggerate the perspective at small sizes. */
+  .sil-scale {
+    --s: 0.4;
+    position: absolute;
+    left: 50%;
+    top: 53%;
+    width: 920px;
+    height: 600px;
+    transform: translate(-50%, -50%) scale3d(var(--s), var(--s), var(--s));
+  }
+  @media (min-width: 640px) {
+    .sil-scale {
+      --s: 0.62;
+    }
+  }
+  @media (min-width: 1024px) {
+    .sil-scale {
+      --s: 0.82;
+      top: 50%;
+    }
+  }
+  @media (min-width: 1400px) {
+    .sil-scale {
+      --s: 0.92;
+    }
+  }
+
+  .sil-board {
+    position: relative;
+    width: 920px;
+    height: 600px;
+    /* Static pose - the script takes over for the living wobble. */
+    transform: rotateX(58deg) rotateZ(-18deg);
+  }
+
+  .sil-pcb {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--color-line) 80%, transparent);
+    background:
+      radial-gradient(60rem 30rem at 30% 20%, rgb(184 255 58 / 0.045), transparent 55%),
+      radial-gradient(50rem 26rem at 80% 80%, rgb(58 224 255 / 0.04), transparent 55%),
+      repeating-linear-gradient(0deg, transparent 0 39px, rgb(42 42 54 / 0.5) 39px 40px),
+      repeating-linear-gradient(90deg, transparent 0 39px, rgb(42 42 54 / 0.5) 39px 40px),
+      linear-gradient(145deg, #0e1218, #0a0d12 60%, #0c0f15);
+    box-shadow: inset 0 0 60px rgb(0 0 0 / 0.55);
+  }
+  /* Board substrate thickness */
+  .sil-pcb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: #05070a;
+    transform: translateZ(-14px);
+  }
+
+  .sil-trace {
+    position: absolute;
+    border-radius: 3px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-text) 30%, transparent), color-mix(in srgb, var(--color-text) 14%, transparent));
+    opacity: 0.32;
+    transform: translateZ(1px);
+  }
+  .sil-trace[data-trace='in'] {
+    background: color-mix(in srgb, var(--color-lime) 55%, transparent);
+  }
+  .sil-trace[data-trace='mem'] {
+    background: color-mix(in srgb, var(--color-cyan) 55%, transparent);
+  }
+  .sil-trace[data-trace='store'] {
+    background: color-mix(in srgb, var(--color-fuchsia) 55%, transparent);
+  }
+
+  .sil-heat {
+    position: absolute;
+    left: 250px;
+    top: 100px;
+    width: 420px;
+    height: 420px;
+    border-radius: 9999px;
+    background: radial-gradient(closest-side, rgb(184 255 58 / 0.24), transparent 70%);
+    filter: blur(26px);
+    opacity: 0;
+    transform: translateZ(2px);
+  }
+
+  /* ── Cuboid faces - z-up extrusion with faked directional light ── */
+  .sil-cub {
+    position: absolute;
+  }
+  .face {
+    position: absolute;
+    backface-visibility: hidden;
+  }
+  .f-top {
+    inset: 0;
+    transform: translateZ(var(--h));
+    background: linear-gradient(135deg, #232937, #161b26 65%);
+    border: 1px solid rgb(255 255 255 / 0.07);
+    border-radius: 6px;
+  }
+  .f-s {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--h);
+    transform-origin: bottom;
+    transform: rotateX(-90deg);
+    background: linear-gradient(180deg, #1b2130, #10141d);
+  }
+  .f-n {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--h);
+    transform-origin: top;
+    transform: rotateX(90deg);
+    background: #0d1119;
+  }
+  .f-e {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: var(--h);
+    transform-origin: right;
+    transform: rotateY(90deg);
+    background: linear-gradient(90deg, #171c28, #10141d);
+  }
+  .f-w {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--h);
+    transform-origin: left;
+    transform: rotateY(-90deg);
+    background: #0c0f16;
+  }
+
+  /* CPU heat spreader */
+  .sil-cpu .f-top {
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 0.09), transparent 45%),
+      linear-gradient(160deg, #2b3140, #1a1f2b 70%, #202634);
+    border-radius: 10px;
+    border-color: rgb(255 255 255 / 0.12);
+    display: grid;
+    place-items: center;
+  }
+  .sil-die {
+    width: 160px;
+    height: 160px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+    padding: 10px;
+    background: #0b0e15;
+    border: 1px solid rgb(184 255 58 / 0.25);
+    border-radius: 8px;
+    transform: translateZ(1px);
+  }
+  .sil-core {
+    border-radius: 4px;
+    background: #1a2029;
+    border: 1px solid rgb(255 255 255 / 0.05);
+  }
+
+  /* DIMMs - thin standing slabs with gold pin stripe */
+  .sil-dimm .f-e,
+  .sil-dimm .f-w {
+    background:
+      linear-gradient(0deg, rgb(201 162 39 / 0.5) 0 7px, transparent 7px),
+      linear-gradient(90deg, #1c2230, #12161f);
+  }
+  .sil-dimm .f-top {
+    background: linear-gradient(135deg, #2c3344, #1a1f2b);
+    border-radius: 3px;
+  }
+  .sil-dimm-glow {
+    position: absolute;
+    inset: -2px;
+    border-radius: 4px;
+    background: var(--color-cyan);
+    filter: blur(6px);
+    opacity: 0;
+  }
+
+  .sil-nic .f-top {
+    background: linear-gradient(150deg, #262c3a, #141924);
+  }
+  .sil-nvme .f-top {
+    background: linear-gradient(150deg, #212733, #131722);
+  }
+  .sil-chip-label {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    letter-spacing: 0.35em;
+    color: color-mix(in srgb, var(--color-muted) 80%, transparent);
+  }
+
+  .sil-cap .f-top {
+    border-radius: 9999px;
+    background: radial-gradient(circle at 35% 30%, #39404f, #191e29 70%);
+  }
+  .sil-cap .f-s,
+  .sil-cap .f-n,
+  .sil-cap .f-e,
+  .sil-cap .f-w {
+    background: #151a24;
+  }
+
+  .sil-io .f-top {
+    background: linear-gradient(90deg, #1d2330 0 6%, #12161f 6% 94%, #1d2330 94%);
+  }
+
+  .sil-pkt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--pk);
+    box-shadow:
+      0 0 10px var(--pk),
+      0 0 26px color-mix(in srgb, var(--pk) 55%, transparent);
+    opacity: 0;
+  }
+
+  /* Pipeline stage ticker */
+  .sil-stage-window {
+    display: inline-block;
+    height: 16px;
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+  .sil-stage-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .sil-stage {
+    height: 16px;
+    line-height: 16px;
+  }
+</style>
+
+<script>
+  import { animate, createTimeline, stagger, utils } from 'animejs';
+
+  const section = document.getElementById('silicon');
+  const board = document.getElementById('sil-board');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (section && board && !reduced) {
+    const LIME = '#b8ff3a';
+    const CORE_BASE = '#1a2029';
+
+    // The script owns the pose from here (same values as the CSS fallback).
+    utils.set(board, { rotateX: 58, rotateZ: -18 });
+
+    /** Position a packet at board coords (center of a 14px square). */
+    const at = (x: number, y: number) => ({ x: x - 7, y: y - 7 });
+    const pktIn = '#pkt-in';
+    const pktMem = '#pkt-mem';
+    const pktStore = '#pkt-store';
+    utils.set(pktIn, { ...at(163, 480), z: 14 });
+    utils.set(pktMem, { ...at(585, 309), z: 14 });
+    utils.set(pktStore, { ...at(458, 436), z: 14 });
+
+    // ── Ambient life: slow float + wobble, cap shimmer ─────────────
+    const wobble = animate(board, {
+      rotateX: [56.5, 60],
+      rotateZ: [-20.5, -15.5],
+      duration: 9000,
+      ease: 'inOutSine',
+      alternate: true,
+      loop: true,
+    });
+    const bob = animate('.sil-float', {
+      y: [-8, 8],
+      duration: 6400,
+      ease: 'inOutSine',
+      alternate: true,
+      loop: true,
+    });
+    const caps = animate('.sil-cap .f-top', {
+      opacity: [{ to: 0.75, duration: 900 }, { to: 1, duration: 900 }],
+      delay: stagger(320),
+      ease: 'inOutSine',
+      alternate: true,
+      loop: true,
+    });
+
+    const flash = (lane: string, atMs: number, tl: ReturnType<typeof createTimeline>) => {
+      tl.add(
+        `[data-trace="${lane}"]`,
+        {
+          opacity: [
+            { to: 0.95, duration: 220, ease: 'outQuad' },
+            { to: 0.22, duration: 700, ease: 'inOutSine' },
+          ],
+        },
+        atMs,
+      );
+    };
+
+    // ── The clock: one 6.4s machine cycle, forever ─────────────────
+    const tl = createTimeline({ loop: true, defaults: { ease: 'inOutSine' } });
+    const stageEl = '#sil-stages';
+    const stageAt = (idx: number, atMs: number) => {
+      tl.add(stageEl, { y: -16 * idx, duration: 260, ease: 'outExpo' }, atMs);
+    };
+
+    // FETCH - a packet arrives NIC → CPU
+    stageAt(0, 0);
+    flash('in', 60, tl);
+    tl.add(pktIn, { opacity: [{ to: 1, duration: 140 }] }, 0);
+    tl.add(pktIn, { ...at(163, 309), duration: 520, ease: 'inOutQuad' }, 120);
+    tl.add(pktIn, { ...at(330, 309), duration: 430, ease: 'inQuad' }, 680);
+    tl.add(pktIn, { opacity: 0, duration: 140 }, 1080);
+
+    // DECODE
+    stageAt(1, 1150);
+
+    // EXECUTE - the die ripples twice, heat blooms
+    stageAt(2, 1650);
+    for (const t of [1650, 2350]) {
+      tl.add(
+        '.sil-core',
+        {
+          backgroundColor: [
+            { to: LIME, duration: 190, ease: 'outQuad' },
+            { to: CORE_BASE, duration: 460, ease: 'inOutSine' },
+          ],
+          scale: [
+            { to: 1.18, duration: 190, ease: 'outQuad' },
+            { to: 1, duration: 460 },
+          ],
+          delay: stagger(42, { grid: [4, 4], from: 'center' }),
+        },
+        t,
+      );
+    }
+    tl.add(
+      '#sil-heat',
+      {
+        opacity: [
+          { to: 0.85, duration: 700, ease: 'outQuad' },
+          { to: 0, duration: 1400, ease: 'inOutSine' },
+        ],
+      },
+      1700,
+    );
+
+    // MEMORY - round trip to the DIMMs, DMA to NVMe
+    stageAt(3, 3000);
+    flash('mem', 3000, tl);
+    tl.add(pktMem, { opacity: [{ to: 1, duration: 120 }] }, 3000);
+    tl.add(pktMem, { ...at(650, 309), duration: 380, ease: 'inOutQuad' }, 3080);
+    tl.add('.sil-dimm-glow', { opacity: [{ to: 0.8, duration: 180 }, { to: 0, duration: 520 }], delay: stagger(90) }, 3380);
+    tl.add(pktMem, { ...at(585, 309), duration: 380, ease: 'inOutQuad' }, 3660);
+    tl.add(pktMem, { opacity: 0, duration: 120 }, 4020);
+
+    flash('store', 3350, tl);
+    tl.add(pktStore, { opacity: [{ to: 1, duration: 120 }] }, 3350);
+    tl.add(pktStore, { ...at(458, 494), duration: 300, ease: 'inOutQuad' }, 3430);
+    tl.add(pktStore, { ...at(595, 494), duration: 380, ease: 'inOutQuad' }, 3740);
+    tl.add(pktStore, { opacity: 0, duration: 140 }, 4120);
+
+    // WRITE-BACK - the answer rides home CPU → NIC
+    stageAt(4, 4450);
+    flash('in', 4500, tl);
+    tl.add(pktIn, { opacity: [{ to: 1, duration: 120 }] }, 4500);
+    tl.add(pktIn, { ...at(163, 309), duration: 430, ease: 'outQuad' }, 4560);
+    tl.add(pktIn, { ...at(163, 480), duration: 520, ease: 'inOutQuad' }, 5030);
+    tl.add(pktIn, { opacity: 0, duration: 160 }, 5550);
+
+    // settle, then the loop refetches
+    tl.add(stageEl, { y: 0, duration: 260, ease: 'outExpo' }, 6100);
+
+    // ── Economy: run only while the scene is on screen ─────────────
+    const instances = [wobble, bob, caps, tl];
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          for (const a of instances) {
+            if (entry.isIntersecting) a.play();
+            else a.pause();
+          }
+        }
+      },
+      { threshold: 0.08 },
+    );
+    io.observe(section);
+  }
+</script>
