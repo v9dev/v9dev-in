@@ -52,12 +52,13 @@ const CAPTIONS = [
         How Kubernetes <span class="text-cyan">actually works.</span>
       </p>
       <p class="max-w-xs font-mono text-[11px] uppercase tracking-widest leading-relaxed text-muted">
-        one control loop · drawn in real time · drag the strip to scrub
+        one control loop · drag to rotate · scrub the strip
       </p>
     </div>
 
     <div class="relative mt-8">
-      <div class="k8s-stage">
+      <div class="k8s-stage" id="k8s-stage">
+        <div class="k8s-shadow" aria-hidden="true"></div>
         <div class="k8s-tilt" id="k8s-tilt">
           <svg
             id="k8s-svg"
@@ -225,17 +226,38 @@ const CAPTIONS = [
     max-height: 72vh;
   }
 
-  /* The drawing lies on a 3D drafting table - gentle base tilt, with
-     pointer parallax steering it from the script. Angles stay small so
-     the annotations remain readable. */
+  /* Same 3D language as the silicon board: steep base pose, living
+     wobble, drag to orbit. The script owns the pose; this static
+     transform is the reduced-motion/no-JS fallback. */
   .k8s-stage {
-    perspective: 1600px;
-    perspective-origin: 50% 38%;
+    position: relative;
+    perspective: 1400px;
+    perspective-origin: 50% 30%;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .k8s-stage.dragging {
+    cursor: grabbing;
+  }
+  .k8s-stage > * {
+    pointer-events: none;
   }
   .k8s-tilt {
     transform-style: preserve-3d;
-    transform: rotateX(22deg) rotateZ(-4deg);
+    transform: rotateX(48deg) rotateZ(-14deg);
     will-change: transform;
+  }
+  .k8s-shadow {
+    position: absolute;
+    left: 50%;
+    top: 66%;
+    width: 52rem;
+    height: 10rem;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.5), transparent 70%);
+    filter: blur(26px);
   }
 
   .k-stroke {
@@ -268,15 +290,17 @@ const CAPTIONS = [
   #manifest {
     opacity: 0;
   }
+  /* Slightly larger than flat-reading size - the steep tilt
+     foreshortens the glyphs. */
   .k-label {
     font-family: var(--font-mono);
-    font-size: 13px;
+    font-size: 14.5px;
     letter-spacing: 0.08em;
     fill: var(--color-muted);
     stroke: none;
   }
   .k-small {
-    font-size: 10.5px;
+    font-size: 11.5px;
   }
   .pod-dot {
     fill: var(--color-lime);
@@ -529,29 +553,71 @@ const CAPTIONS = [
       }
     });
 
-    // ── 3D drafting-table parallax: the plane follows the pointer ─
+    // ── Same 3D as the silicon board: wobble + drag-to-orbit ──────
     const tilt = document.getElementById('k8s-tilt');
-    if (tilt) {
-      const pose = { rx: 22, rz: -4 };
-      const target = { rx: 22, rz: -4 };
-      section.addEventListener('pointermove', (e) => {
-        const r = section.getBoundingClientRect();
-        const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
-        const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
-        target.rx = 22 + ny * -5;
-        target.rz = -4 + nx * 4;
+    const stage = document.getElementById('k8s-stage');
+    if (tilt && stage) {
+      const BASE_RX = 48;
+      const BASE_RZ = -14;
+      const POSE = { rx: BASE_RX, rz: BASE_RZ };
+      utils.set(tilt, { rotateX: BASE_RX, rotateZ: BASE_RZ });
+
+      const mkWobble = () =>
+        animate(tilt, {
+          rotateX: [
+            { to: BASE_RX + 2.5, duration: 2800 },
+            { to: BASE_RX - 2.5, duration: 4200 },
+            { to: BASE_RX, duration: 2400 },
+          ],
+          rotateZ: [
+            { to: BASE_RZ + 3, duration: 3400 },
+            { to: BASE_RZ - 3, duration: 3600 },
+            { to: BASE_RZ, duration: 2400 },
+          ],
+          ease: 'inOutSine',
+          loop: true,
+        });
+      let wobble = mkWobble();
+
+      let dragging = false;
+      let returnAnim: ReturnType<typeof animate> | null = null;
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+      stage.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        stage.classList.add('dragging');
+        stage.setPointerCapture(e.pointerId);
+        wobble.pause();
+        returnAnim?.pause();
+        clearTimeout(idleTimer);
+        POSE.rx = Number(utils.get(tilt, 'rotateX', false));
+        POSE.rz = Number(utils.get(tilt, 'rotateZ', false));
       });
-      section.addEventListener('pointerleave', () => {
-        target.rx = 22;
-        target.rz = -4;
+      stage.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        POSE.rz = utils.clamp(POSE.rz + e.movementX * 0.2, -70, 46);
+        POSE.rx = utils.clamp(POSE.rx - e.movementY * 0.18, 24, 68);
+        utils.set(tilt, { rotateX: POSE.rx, rotateZ: POSE.rz });
       });
-      const settle = () => {
-        pose.rx += (target.rx - pose.rx) * 0.07;
-        pose.rz += (target.rz - pose.rz) * 0.07;
-        utils.set(tilt, { rotateX: pose.rx, rotateZ: pose.rz });
-        requestAnimationFrame(settle);
+      const endOrbit = () => {
+        if (!dragging) return;
+        dragging = false;
+        stage.classList.remove('dragging');
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          returnAnim = animate(tilt, {
+            rotateX: BASE_RX,
+            rotateZ: BASE_RZ,
+            duration: 1400,
+            ease: 'inOutQuad',
+            onComplete: () => {
+              wobble = mkWobble();
+            },
+          });
+        }, 5000);
       };
-      requestAnimationFrame(settle);
+      stage.addEventListener('pointerup', endOrbit);
+      stage.addEventListener('pointercancel', endOrbit);
     }
 
     // ── run only while on screen ──────────────────────────────────
