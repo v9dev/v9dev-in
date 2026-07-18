@@ -2,12 +2,20 @@
 /**
  * SILICON - an ambient, self-running 3D scene of what a request looks
  * like at the hardware level. Real CSS 3D geometry (perspective +
- * preserve-3d cuboids with per-face lighting), choreographed by anime.js:
- * packets ride the traces NIC → CPU → RAM/NVMe → NIC while the die's
- * 16-core grid ripples and the pipeline ticker steps FETCH → WRITE-BACK.
+ * preserve-3d cuboids with per-face lighting), choreographed by anime.js.
  *
- * Fully automatic - no interaction required. Pauses offscreen, goes
- * static under prefers-reduced-motion, needs zero React runtime.
+ * One grand loop, forever:
+ *   1. machine cycle - a packet rides NIC → CPU, the die ripples,
+ *      round trips hit RAM/NVMe, the answer rides home (pipeline ticker
+ *      steps FETCH → WRITE-BACK)
+ *   2. teardown - the camera zooms into the CPU, the heat spreader
+ *      lifts off, the die rises, and an SVG lesson counts 0000 → 1010
+ *      in binary with carry pulses (1010 = 8 + 2 = 10)
+ *
+ * Controls: drag to orbit the board, +/- to zoom, reset to recenter.
+ * The scene never NEEDS interaction - it returns to its idle wobble a
+ * few seconds after you let go. Pauses offscreen; static under
+ * prefers-reduced-motion; zero React runtime.
  */
 
 interface Part {
@@ -47,7 +55,7 @@ const TRACES: Array<[number, number, number, number, string]> = [
   [455, 490, 148, 6, 'store'], // → toward nvme
 ];
 
-const STAGES = ['fetch', 'decode', 'execute', 'memory', 'write-back'];
+const STAGES = ['fetch', 'decode', 'execute', 'memory', 'write-back', 'teardown', 'binary'];
 
 const SPECS = [
   { label: 'cpu · 16-core die', color: 'var(--color-lime)' },
@@ -55,63 +63,116 @@ const SPECS = [
   { label: 'nvme · gen4 ×4', color: 'var(--color-fuchsia)' },
   { label: 'nic · packets in/out', color: 'var(--color-amber)' },
 ];
+
+/** Binary lesson cells, MSB → LSB with their place values. */
+const BITS = [
+  { bit: 3, weight: 8 },
+  { bit: 2, weight: 4 },
+  { bit: 1, weight: 2 },
+  { bit: 0, weight: 1 },
+];
 ---
 
-<section id="silicon" aria-label="Animated 3D scene of a request travelling across computer hardware" class="relative overflow-hidden">
-  <div class="container-page relative z-10 pt-10">
-    <div class="section-label text-lime/80"><span>// silicon</span></div>
-    <p class="mt-3 max-w-md font-display text-2xl md:text-3xl font-semibold leading-tight text-balance">
-      Every request ends up <span class="text-lime">at the metal.</span>
-    </p>
+<section id="silicon" aria-label="Animated 3D scene of a request travelling across computer hardware, with a CPU teardown showing binary counting" class="relative overflow-hidden">
+  <div class="container-page relative z-10 flex items-start justify-between gap-6 pt-10">
+    <div>
+      <div class="section-label text-lime/80"><span>// silicon</span></div>
+      <p class="mt-3 max-w-md font-display text-2xl md:text-3xl font-semibold leading-tight text-balance">
+        Every request ends <span class="text-lime">at the metal.</span>
+      </p>
+    </div>
+    <div class="flex flex-col items-end gap-2 pt-1">
+      <div class="flex gap-2">
+        <button type="button" id="sil-zoom-out" aria-label="Zoom out" data-cursor-label="out"
+          class="size-9 rounded-full border border-line/80 bg-elevated/70 backdrop-blur font-mono text-sm text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime">−</button>
+        <button type="button" id="sil-zoom-in" aria-label="Zoom in" data-cursor-label="in"
+          class="size-9 rounded-full border border-line/80 bg-elevated/70 backdrop-blur font-mono text-sm text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime">+</button>
+        <button type="button" id="sil-reset" aria-label="Reset view" data-cursor-label="reset"
+          class="size-9 rounded-full border border-line/80 bg-elevated/70 backdrop-blur font-mono text-sm text-muted transition-colors hover:border-lime hover:text-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-lime">⟲</button>
+      </div>
+      <span class="hidden font-mono text-[10px] uppercase tracking-widest text-muted sm:block">drag to rotate</span>
+    </div>
   </div>
 
-  <div class="sil-viewport" aria-hidden="true">
+  <div class="sil-viewport" id="sil-viewport" aria-hidden="true">
     <div class="sil-shadow"></div>
     <div class="sil-scale">
-      <div class="sil-float">
-        <div class="sil-board" id="sil-board">
-          <div class="sil-pcb"></div>
+      <div class="sil-zoom-user">
+        <div class="sil-zoom-act">
+          <div class="sil-float">
+            <div class="sil-board" id="sil-board">
+              <div class="sil-pcb"></div>
 
-          {TRACES.map(([x, y, w, h, lane]) => (
-            <div
-              class="sil-trace"
-              data-trace={lane}
-              style={`left:${x}px; top:${y}px; width:${w}px; height:${h}px;`}
-            >
-            </div>
-          ))}
+              {TRACES.map(([x, y, w, h, lane]) => (
+                <div
+                  class="sil-trace"
+                  data-trace={lane}
+                  style={`left:${x}px; top:${y}px; width:${w}px; height:${h}px;`}
+                >
+                </div>
+              ))}
 
-          <div class="sil-heat" id="sil-heat"></div>
+              <div class="sil-heat" id="sil-heat"></div>
 
-          {PARTS.map((p) => (
-            <div
-              class={`sil-cub sil-${p.id.replace(/-\d$/, '').replace(/-[ab]$/, '')}`}
-              data-part={p.id}
-              style={`left:${p.x}px; top:${p.y}px; width:${p.w}px; height:${p.d}px; --h:${p.h}px;`}
-            >
-              <div class="face f-top">
-                {p.id === 'cpu' && (
-                  <div class="sil-die">
-                    {Array.from({ length: 16 }).map(() => (
-                      <div class="sil-core"></div>
-                    ))}
+              {PARTS.map((p) => (
+                <div
+                  class={`sil-cub sil-${p.id.replace(/-\d$/, '').replace(/-[ab]$/, '')}`}
+                  data-part={p.id}
+                  style={`left:${p.x}px; top:${p.y}px; width:${p.w}px; height:${p.d}px; --h:${p.h}px;`}
+                >
+                  <div class="face f-top">
+                    {p.id === 'nic' && <span class="sil-chip-label">NIC</span>}
+                    {p.id === 'nvme' && <span class="sil-chip-label">NVME</span>}
                   </div>
-                )}
-                {p.id.startsWith('dimm') && <div class="sil-dimm-glow"></div>}
-                {p.id === 'nic' && <span class="sil-chip-label">NIC</span>}
-                {p.id === 'nvme' && <span class="sil-chip-label">NVME</span>}
-              </div>
-              <div class="face f-s"></div>
-              <div class="face f-e"></div>
-              <div class="face f-n"></div>
-              <div class="face f-w"></div>
-            </div>
-          ))}
+                  <div class="face f-s"></div>
+                  <div class="face f-e"></div>
+                  <div class="face f-n"></div>
+                  <div class="face f-w"></div>
+                  {p.id === 'cpu' && (
+                    <div class="sil-die-wrap" id="sil-die-wrap">
+                      <div class="sil-die">
+                        {Array.from({ length: 16 }).map(() => (
+                          <div class="sil-core"></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {p.id.startsWith('dimm') && <div class="sil-dimm-glow"></div>}
+                </div>
+              ))}
 
-          {/* Traveling packets - positioned by the script */}
-          <div class="sil-pkt" id="pkt-in" style="--pk: var(--color-lime)"></div>
-          <div class="sil-pkt" id="pkt-mem" style="--pk: var(--color-cyan)"></div>
-          <div class="sil-pkt" id="pkt-store" style="--pk: var(--color-fuchsia)"></div>
+              {/* Binary lesson - hovers above the opened CPU during teardown */}
+              <svg
+                id="sil-binary"
+                viewBox="0 0 260 220"
+                width="260"
+                height="220"
+                style="left: 330px; top: 200px;"
+              >
+                <text x="130" y="22" text-anchor="middle" class="sil-b-title">inside the die · counting in binary</text>
+                {BITS.map(({ bit, weight }, i) => {
+                  const cx = 16 + i * 60;
+                  return (
+                    <g id={`bit-${bit}`}>
+                      <text x={cx + 24} y="52" text-anchor="middle" class="sil-b-weight">{weight}</text>
+                      <rect class="bt-cell" x={cx} y="62" width="48" height="58" rx="8" />
+                      <text x={cx + 24} y="102" text-anchor="middle" class="bt-glyph bt-0">0</text>
+                      <text x={cx + 24} y="102" text-anchor="middle" class="bt-glyph bt-1" opacity="0">1</text>
+                      {bit < 3 && <circle id={`carry-${bit}`} cx={cx - 6} cy="91" r="5" class="sil-b-carry" opacity="0" />}
+                    </g>
+                  );
+                })}
+                <text x="130" y="158" text-anchor="middle" class="sil-b-dec" id="sil-b-dec">= 0</text>
+                <text x="130" y="192" text-anchor="middle" class="sil-b-cap" id="sil-cap-a">each tick flips the 1s place · a full column carries left</text>
+                <text x="130" y="192" text-anchor="middle" class="sil-b-cap sil-b-cap-final" id="sil-cap-b" opacity="0">1010 = 8 + 2 = 10</text>
+              </svg>
+
+              {/* Traveling packets - positioned by the script */}
+              <div class="sil-pkt" id="pkt-in" style="--pk: var(--color-lime)"></div>
+              <div class="sil-pkt" id="pkt-mem" style="--pk: var(--color-cyan)"></div>
+              <div class="sil-pkt" id="pkt-store" style="--pk: var(--color-fuchsia)"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -156,6 +217,11 @@ const SPECS = [
     inset: 0;
     perspective: 1400px;
     perspective-origin: 50% 30%;
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  .sil-viewport.dragging {
+    cursor: grabbing;
   }
 
   /* Soft ground shadow behind the whole scene */
@@ -171,9 +237,12 @@ const SPECS = [
   }
 
   .sil-scale,
+  .sil-zoom-user,
+  .sil-zoom-act,
   .sil-float,
   .sil-board,
-  .sil-cub {
+  .sil-cub,
+  .sil-die-wrap {
     transform-style: preserve-3d;
   }
 
@@ -205,6 +274,12 @@ const SPECS = [
     .sil-scale {
       --s: 0.92;
     }
+  }
+
+  .sil-zoom-user,
+  .sil-zoom-act {
+    position: absolute;
+    inset: 0;
   }
 
   .sil-board {
@@ -320,15 +395,21 @@ const SPECS = [
     background: #0c0f16;
   }
 
-  /* CPU heat spreader */
+  /* CPU heat spreader (the lid that lifts off in the teardown) */
   .sil-cpu .f-top {
     background:
       linear-gradient(135deg, rgb(255 255 255 / 0.09), transparent 45%),
       linear-gradient(160deg, #2b3140, #1a1f2b 70%, #202634);
     border-radius: 10px;
     border-color: rgb(255 255 255 / 0.12);
+  }
+  /* The die sits just above the lid; during teardown they separate. */
+  .sil-die-wrap {
+    position: absolute;
+    inset: 0;
     display: grid;
     place-items: center;
+    transform: translateZ(calc(var(--h) + 1px));
   }
   .sil-die {
     width: 160px;
@@ -340,7 +421,6 @@ const SPECS = [
     background: #0b0e15;
     border: 1px solid rgb(184 255 58 / 0.25);
     border-radius: 8px;
-    transform: translateZ(1px);
   }
   .sil-core {
     border-radius: 4px;
@@ -400,6 +480,54 @@ const SPECS = [
     background: linear-gradient(90deg, #1d2330 0 6%, #12161f 6% 94%, #1d2330 94%);
   }
 
+  /* ── Binary lesson SVG - flat on the board, raised by the script ── */
+  #sil-binary {
+    position: absolute;
+    opacity: 0;
+    transform: translateZ(36px);
+    overflow: visible;
+  }
+  .sil-b-title,
+  .sil-b-cap {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    fill: var(--color-muted);
+  }
+  .sil-b-weight {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    fill: var(--color-muted);
+  }
+  .bt-cell {
+    fill: rgb(11 14 21 / 0.92);
+    stroke: var(--color-line);
+    stroke-width: 1.5;
+  }
+  .bt-glyph {
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 700;
+    fill: var(--color-text);
+  }
+  .bt-1 {
+    fill: var(--color-lime);
+  }
+  .sil-b-carry {
+    fill: var(--color-amber);
+    filter: drop-shadow(0 0 6px var(--color-amber));
+  }
+  .sil-b-dec {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 700;
+    fill: var(--color-cyan);
+  }
+  .sil-b-cap-final {
+    fill: var(--color-lime);
+  }
+
   .sil-pkt {
     position: absolute;
     left: 0;
@@ -435,15 +563,26 @@ const SPECS = [
   import { animate, createTimeline, stagger, utils } from 'animejs';
 
   const section = document.getElementById('silicon');
+  const viewport = document.getElementById('sil-viewport');
   const board = document.getElementById('sil-board');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (section && board && !reduced) {
+  if (section && viewport && board && !reduced) {
     const LIME = '#b8ff3a';
     const CORE_BASE = '#1a2029';
+    const LINE = '#2a2a36';
+    const POSE = { rx: 58, rz: -18 };
 
-    // The script owns the pose from here (same values as the CSS fallback).
-    utils.set(board, { rotateX: 58, rotateZ: -18 });
+    const lid = '.sil-cpu .f-top';
+    const dieWrap = '#sil-die-wrap';
+    const binary = '#sil-binary';
+
+    // The script owns these transforms from here on (values match the
+    // CSS fallbacks, so a no-JS/reduced render looks the same).
+    utils.set(board, { rotateX: POSE.rx, rotateZ: POSE.rz });
+    utils.set(lid, { z: 34 });
+    utils.set(dieWrap, { z: 35 });
+    utils.set(binary, { z: 36, opacity: 0 });
 
     /** Position a packet at board coords (center of a 14px square). */
     const at = (x: number, y: number) => ({ x: x - 7, y: y - 7 });
@@ -454,15 +593,24 @@ const SPECS = [
     utils.set(pktMem, { ...at(585, 309), z: 14 });
     utils.set(pktStore, { ...at(458, 436), z: 14 });
 
-    // ── Ambient life: slow float + wobble, cap shimmer ─────────────
-    const wobble = animate(board, {
-      rotateX: [56.5, 60],
-      rotateZ: [-20.5, -15.5],
-      duration: 9000,
-      ease: 'inOutSine',
-      alternate: true,
-      loop: true,
-    });
+    // ── Ambient life: wobble that starts/ends at the base pose ─────
+    const mkWobble = () =>
+      animate(board, {
+        rotateX: [
+          { to: 60, duration: 2600 },
+          { to: 56.5, duration: 4200 },
+          { to: POSE.rx, duration: 2200 },
+        ],
+        rotateZ: [
+          { to: -15.5, duration: 3200 },
+          { to: -20.5, duration: 3600 },
+          { to: POSE.rz, duration: 2200 },
+        ],
+        ease: 'inOutSine',
+        loop: true,
+      });
+    let wobble = mkWobble();
+
     const bob = animate('.sil-float', {
       y: [-8, 8],
       duration: 6400,
@@ -478,26 +626,97 @@ const SPECS = [
       loop: true,
     });
 
+    // ── Controls: drag to orbit, buttons to zoom, auto-return ──────
+    let dragging = false;
+    let returnAnim: ReturnType<typeof animate> | null = null;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let userZoom = 1;
+
+    const returnToIdle = () => {
+      returnAnim = animate(board, {
+        rotateX: POSE.rx,
+        rotateZ: POSE.rz,
+        duration: 1400,
+        ease: 'inOutQuad',
+        onComplete: () => {
+          wobble = mkWobble();
+        },
+      });
+    };
+
+    viewport.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      viewport.classList.add('dragging');
+      viewport.setPointerCapture(e.pointerId);
+      wobble.pause();
+      returnAnim?.pause();
+      clearTimeout(idleTimer);
+      POSE.rx = Number(utils.get(board, 'rotateX', false));
+      POSE.rz = Number(utils.get(board, 'rotateZ', false));
+    });
+    viewport.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      POSE.rz = utils.clamp(POSE.rz + e.movementX * 0.22, -80, 44);
+      POSE.rx = utils.clamp(POSE.rx - e.movementY * 0.18, 38, 74);
+      utils.set(board, { rotateX: POSE.rx, rotateZ: POSE.rz });
+    });
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      viewport.classList.remove('dragging');
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        POSE.rx = 58;
+        POSE.rz = -18;
+        returnToIdle();
+      }, 5000);
+    };
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
+
+    const applyZoom = () => {
+      animate('.sil-zoom-user', { scale: userZoom, duration: 450, ease: 'outQuad' });
+    };
+    document.getElementById('sil-zoom-in')?.addEventListener('click', () => {
+      userZoom = utils.clamp(userZoom * 1.25, 0.55, 2.1);
+      applyZoom();
+    });
+    document.getElementById('sil-zoom-out')?.addEventListener('click', () => {
+      userZoom = utils.clamp(userZoom / 1.25, 0.55, 2.1);
+      applyZoom();
+    });
+    document.getElementById('sil-reset')?.addEventListener('click', () => {
+      userZoom = 1;
+      applyZoom();
+      wobble.pause();
+      returnAnim?.pause();
+      clearTimeout(idleTimer);
+      POSE.rx = 58;
+      POSE.rz = -18;
+      returnToIdle();
+    });
+
     const flash = (lane: string, atMs: number, tl: ReturnType<typeof createTimeline>) => {
       tl.add(
         `[data-trace="${lane}"]`,
         {
           opacity: [
             { to: 0.95, duration: 220, ease: 'outQuad' },
-            { to: 0.22, duration: 700, ease: 'inOutSine' },
+            { to: 0.32, duration: 700, ease: 'inOutSine' },
           ],
         },
         atMs,
       );
     };
 
-    // ── The clock: one 6.4s machine cycle, forever ─────────────────
+    // ── The grand loop: machine cycle, then CPU teardown + binary ──
     const tl = createTimeline({ loop: true, defaults: { ease: 'inOutSine' } });
     const stageEl = '#sil-stages';
     const stageAt = (idx: number, atMs: number) => {
       tl.add(stageEl, { y: -16 * idx, duration: 260, ease: 'outExpo' }, atMs);
     };
 
+    // ACT 1 - the machine cycle -------------------------------------
     // FETCH - a packet arrives NIC → CPU
     stageAt(0, 0);
     flash('in', 60, tl);
@@ -562,15 +781,82 @@ const SPECS = [
     tl.add(pktIn, { ...at(163, 480), duration: 520, ease: 'inOutQuad' }, 5030);
     tl.add(pktIn, { opacity: 0, duration: 160 }, 5550);
 
-    // settle, then the loop refetches
-    tl.add(stageEl, { y: 0, duration: 260, ease: 'outExpo' }, 6100);
+    // ACT 2 - teardown: zoom in, lift the lid, raise the die --------
+    stageAt(5, 6300);
+    // Scale AND drop the camera target so the raised binary panel stays
+    // clear of the fixed nav at the top of the viewport.
+    tl.add('.sil-zoom-act', { scale: 1.9, y: 96, duration: 1100, ease: 'inOutQuad' }, 6400);
+    tl.add(lid, { z: 150, x: -20, y: -14, opacity: 0.28, duration: 950, ease: 'inOutQuad' }, 6650);
+    tl.add(dieWrap, { z: 92, duration: 950, ease: 'inOutQuad' }, 6800);
+
+    // ACT 3 - binary: count 0000 → 1010 with carry pulses -----------
+    stageAt(6, 7500);
+    tl.add(binary, { z: 150, opacity: 1, duration: 650, ease: 'outQuad' }, 7450);
+
+    const TICK = 380;
+    const T0 = 8300;
+    for (let n = 1; n <= 10; n++) {
+      const pos = T0 + (n - 1) * TICK;
+      for (let b = 0; b < 4; b++) {
+        const was = (n - 1) >> b & 1;
+        const is = n >> b & 1;
+        if (was === is) continue;
+        tl.add(`#bit-${b} .bt-1`, { opacity: is ? 1 : 0, duration: 150, ease: 'outQuad' }, pos);
+        tl.add(`#bit-${b} .bt-0`, { opacity: is ? 0 : 1, duration: 150, ease: 'outQuad' }, pos);
+        tl.add(`#bit-${b} .bt-cell`, { stroke: is ? LIME : LINE, duration: 220 }, pos);
+        if (!is && b < 3) {
+          // A full column empties and carries one to the left.
+          tl.add(`#carry-${b}`, {
+            x: { from: 0, to: -48, duration: 240, ease: 'inOutQuad' },
+            opacity: [{ to: 1, duration: 70 }, { to: 0, duration: 170 }],
+          }, pos);
+        }
+      }
+      tl.call(() => {
+        const dec = document.getElementById('sil-b-dec');
+        if (dec) dec.textContent = `= ${n}`;
+      }, pos + 90);
+    }
+
+    // Land on 1010 and read it: 8 + 2 = 10.
+    const DONE = T0 + 10 * TICK;
+    tl.add('#sil-cap-a', { opacity: 0, duration: 260 }, DONE + 150);
+    tl.add('#sil-cap-b', { opacity: 1, duration: 320 }, DONE + 320);
+    tl.add(
+      '.sil-core',
+      {
+        backgroundColor: [
+          { to: LIME, duration: 160, ease: 'outQuad' },
+          { to: CORE_BASE, duration: 420 },
+        ],
+        delay: stagger(26),
+      },
+      DONE + 400,
+    );
+
+    // Reassemble and zoom back out for the next request -------------
+    const OUT = DONE + 1900;
+    tl.add(binary, { opacity: 0, z: 60, duration: 480, ease: 'inQuad' }, OUT);
+    tl.add(dieWrap, { z: 35, duration: 700, ease: 'inOutQuad' }, OUT + 250);
+    tl.add(lid, { z: 34, x: 0, y: 0, opacity: 1, duration: 800, ease: 'inOutQuad' }, OUT + 400);
+    tl.add('.sil-zoom-act', { scale: 1, y: 0, duration: 950, ease: 'inOutQuad' }, OUT + 550);
+    tl.call(() => {
+      const dec = document.getElementById('sil-b-dec');
+      if (dec) dec.textContent = '= 0';
+    }, OUT + 500);
+    // Reset the lesson glyphs for the next pass.
+    tl.add('.bt-1', { opacity: 0, duration: 200 }, OUT + 500);
+    tl.add('.bt-0', { opacity: 1, duration: 200 }, OUT + 500);
+    tl.add('.bt-cell', { stroke: LINE, duration: 200 }, OUT + 500);
+    tl.add('#sil-cap-b', { opacity: 0, duration: 200 }, OUT + 500);
+    tl.add('#sil-cap-a', { opacity: 1, duration: 200 }, OUT + 700);
+    tl.add(stageEl, { y: 0, duration: 260, ease: 'outExpo' }, OUT + 1500);
 
     // ── Economy: run only while the scene is on screen ─────────────
-    const instances = [wobble, bob, caps, tl];
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          for (const a of instances) {
+          for (const a of [wobble, bob, caps, tl]) {
             if (entry.isIntersecting) a.play();
             else a.pause();
           }
