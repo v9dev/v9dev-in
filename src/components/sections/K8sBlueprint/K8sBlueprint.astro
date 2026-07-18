@@ -1,25 +1,66 @@
 ---
 /**
- * K8S BLUEPRINT - Kubernetes explained as a self-drawing engineering
- * blueprint. Pure line-art SVG (fill: none, thin strokes) in the style
- * of a technical drawing, choreographed by anime.js with its SVG
- * drawable API: strokes draw themselves in, a manifest flies to the
- * API server, the scheduler binds pods, a service balances traffic,
- * a pod dies and the control loop heals it, the deployment scales
- * 3 → 5, then the whole drawing erases and starts again.
+ * K8S - Kubernetes explained in the same solid 3D language as the
+ * silicon board: real CSS 3D cuboids with per-face lighting on a dark
+ * board plane, choreographed by anime.js in one looping control-loop
+ * story - the cluster builds itself, kubectl apply lands, the scheduler
+ * binds pods, a service balances traffic, a pod dies and is healed,
+ * the deployment scales 3 → 5, then everything sinks and rebuilds.
  *
- * A tick-strip timeline (bottom right) shows playback position and can
- * be dragged to scrub the whole story. Pauses offscreen; static under
- * prefers-reduced-motion; zero React runtime.
+ * Same interactions as silicon: drag to orbit (auto-returns to a
+ * living wobble), plus a tick-strip timeline you can drag to scrub the
+ * whole story. Pauses offscreen; static under prefers-reduced-motion;
+ * zero React runtime.
  */
 
-const NODES = [
-  { id: 1, y: 48 },
-  { id: 2, y: 210 },
-  { id: 3, y: 372 },
+interface Part {
+  id: string;
+  cls: string;
+  x: number;
+  y: number;
+  w: number; // footprint width (board x)
+  d: number; // footprint depth (board y)
+  h: number; // extrusion height (z)
+  label?: string;
+}
+
+const NODE_YS = [90, 260, 430];
+
+const PARTS: Part[] = [
+  // control plane podium + components
+  { id: 'cp-plat', cls: 'k-plat', x: 40, y: 120, w: 280, d: 360, h: 10 },
+  { id: 'api', cls: 'k-box', x: 70, y: 150, w: 220, d: 70, h: 40, label: 'api-server' },
+  { id: 'etcd', cls: 'k-box', x: 70, y: 260, w: 100, d: 90, h: 52, label: 'etcd' },
+  { id: 'sched', cls: 'k-box', x: 200, y: 260, w: 90, d: 90, h: 36, label: 'sched' },
+  { id: 'ctrl', cls: 'k-box', x: 70, y: 390, w: 220, d: 60, h: 30, label: 'ctrl-mgr' },
+  // ingress
+  { id: 'ingress', cls: 'k-box', x: 380, y: 16, w: 150, d: 60, h: 22, label: 'ingress' },
+  // worker node plates + kubelets
+  ...NODE_YS.flatMap((y, i) => [
+    {
+      id: `node-${i + 1}`,
+      cls: 'k-node',
+      x: 480,
+      y,
+      w: 400,
+      d: 140,
+      h: 14,
+      label: `node-${i + 1}`,
+    },
+    {
+      id: `kubelet-${i + 1}`,
+      cls: 'k-box k-kubelet',
+      x: 790,
+      y: y + 18,
+      w: 74,
+      d: 38,
+      h: 20,
+      label: 'kubelet',
+    },
+  ]),
 ];
 
-/** [id, nodeIndex, slot] - slot 0 left, 1 right */
+/** [id, nodeIndex, slot] - pods, spawned by the story. */
 const PODS: Array<[string, number, number]> = [
   ['p11', 0, 0],
   ['p12', 0, 1],
@@ -28,25 +69,33 @@ const PODS: Array<[string, number, number]> = [
   ['p31', 2, 0],
   ['p32', 2, 1],
 ];
+const podX = (slot: number) => 505 + slot * 104;
+const podY = (node: number) => NODE_YS[node] + 62;
 
-const podX = (slot: number) => 596 + slot * 132;
-const podY = (node: number) => NODES[node].y + 54;
+/** Traces on the board plane: api-server spine + per-node lanes. [x,y,w,h] */
+const TRACES: Array<[string, number, number, number, number]> = [
+  ['t-stub', 290, 179, 110, 6],
+  ['t-spine', 400, 160, 6, 346],
+  ['t-lane1', 400, 157, 80, 6],
+  ['t-lane2', 400, 327, 80, 6],
+  ['t-lane3', 400, 497, 80, 6],
+];
 
 const CAPTIONS = [
-  'drawing the cluster',
+  'building the cluster',
   'kubectl apply -f deploy.yaml',
   'scheduler binds 3 pods',
   'service balances traffic',
   'pod dies · control loop heals',
   'scale: replicas 3 → 5',
   'declared state == actual state',
-  'erase · loop',
+  'tear down · loop',
 ];
 ---
 
-<section id="k8s" aria-label="Animated blueprint explaining how Kubernetes works: a cluster draws itself, schedules pods, balances traffic, self-heals and scales" class="relative py-[var(--section-pad)]">
+<section id="k8s" aria-label="Animated 3D scene explaining how Kubernetes works: a cluster builds itself, schedules pods, balances traffic, self-heals and scales" class="relative py-[var(--section-pad)]">
   <div class="container-page">
-    <div class="section-label text-cyan/80"><span>// blueprint</span></div>
+    <div class="section-label text-cyan/80"><span>// orchestration</span></div>
     <div class="mt-3 flex flex-wrap items-end justify-between gap-4">
       <p class="max-w-md font-display text-2xl md:text-3xl font-semibold leading-tight text-balance">
         How Kubernetes <span class="text-cyan">actually works.</span>
@@ -55,182 +104,101 @@ const CAPTIONS = [
         one control loop · drag to rotate · scrub the strip
       </p>
     </div>
+  </div>
 
-    <div class="relative mt-8">
-      <div class="k8s-stage" id="k8s-stage">
-        <div class="k8s-shadow" aria-hidden="true"></div>
-        <div class="k8s-tilt" id="k8s-tilt">
-          <svg
-            id="k8s-svg"
-        viewBox="0 0 1000 560"
-        class="h-auto w-full"
-        fill="none"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        {/* ── control plane ─────────────────────────────────────── */}
-        <g class="k-stroke">
-          <rect class="k-draw k-cp k-dashed" x="36" y="64" width="270" height="430" rx="16" />
-          <text class="k-label" x="52" y="48">control-plane</text>
+  <div class="k8s-viewport" id="k8s-stage" aria-hidden="true">
+    <div class="k8s-shadow"></div>
+    <div class="k8s-scale">
+      <div class="k8s-tilt" id="k8s-tilt">
+        <div class="k8s-board">
+          <div class="k8s-pcb"></div>
 
-          {/* kube-apiserver */}
-          <rect class="k-draw k-cp" x="66" y="96" width="210" height="64" rx="10" />
-          <circle class="k-draw k-cp" cx="276" cy="128" r="5" />
-          <text class="k-label" x="86" y="132">kube-apiserver</text>
+          {TRACES.map(([id, x, y, w, h]) => (
+            <div
+              class="k8s-trace"
+              id={id}
+              style={`left:${x}px; top:${y}px; width:${w}px; height:${h}px;`}
+            >
+            </div>
+          ))}
 
-          {/* etcd - cylinder */}
-          <ellipse class="k-draw k-cp" cx="121" cy="216" rx="48" ry="14" />
-          <path class="k-draw k-cp" d="M 73 216 V 292 A 48 14 0 0 0 169 292 V 216" />
-          <ellipse class="k-draw k-cp k-faint" cx="121" cy="252" rx="48" ry="14" />
-          <text class="k-label" x="104" y="334">etcd</text>
+          {PARTS.map((p) => (
+            <div
+              class={`k8s-cub ${p.cls}`}
+              id={p.id}
+              style={`left:${p.x}px; top:${p.y}px; width:${p.w}px; height:${p.d}px; --h:${p.h}px;`}
+            >
+              <div class="face f-top">
+                {p.label && <span class="k8s-face-label">{p.label.toUpperCase()}</span>}
+              </div>
+              <div class="face f-s"></div>
+              <div class="face f-e"></div>
+              <div class="face f-n"></div>
+              <div class="face f-w"></div>
+            </div>
+          ))}
 
-          {/* kube-scheduler - dial */}
-          <circle class="k-draw k-cp" cx="232" cy="252" r="34" />
-          <circle class="k-draw k-cp k-faint" cx="232" cy="252" r="24" />
-          <g id="sched-ticks">
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => {
-              const r1 = 26;
-              const r2 = 33;
-              const rad = (a * Math.PI) / 180;
-              return (
-                <line
-                  class="k-draw k-cp"
-                  x1={232 + r1 * Math.cos(rad)}
-                  y1={252 + r1 * Math.sin(rad)}
-                  x2={232 + r2 * Math.cos(rad)}
-                  y2={252 + r2 * Math.sin(rad)}
-                />
-              );
-            })}
-          </g>
-          <text class="k-label" x="196" y="334">scheduler</text>
+          {PODS.map(([id, node, slot]) => (
+            <div
+              class="k8s-cub k8s-pod"
+              id={id}
+              style={`left:${podX(slot)}px; top:${podY(node)}px; width:84px; height:58px; --h:32px;`}
+            >
+              <div class="face f-top"><span class="k8s-face-label">POD</span></div>
+              <div class="face f-s"></div>
+              <div class="face f-e"></div>
+              <div class="face f-n"></div>
+              <div class="face f-w"></div>
+              <div class="pod-glow"></div>
+            </div>
+          ))}
 
-          {/* controller-manager - the control loop */}
-          <circle class="k-draw k-cp" cx="150" cy="416" r="26" />
-          <path id="ctrl-loop" class="k-draw k-cp" d="M 150 378 A 38 38 0 1 1 112 416" />
-          <path class="k-draw k-cp" d="M 104 402 L 112 416 L 122 406" />
-          <text class="k-label" x="92" y="474">controller-manager</text>
-        </g>
+          {/* kubectl manifest - a glowing chip that flies to the api-server */}
+          <div class="k8s-manifest" id="k8s-manifest"></div>
 
-        {/* ── service + ingress traffic ─────────────────────────── */}
-        <g class="k-stroke">
-          <path class="k-draw k-svc" d="M 470 10 L 512 46 L 470 82 L 428 46 Z" />
-          <text class="k-label" x="446" y="51">svc</text>
-          <line class="k-draw k-svc" x1="336" y1="46" x2="420" y2="46" />
-          <path class="k-draw k-svc" d="M 410 38 L 422 46 L 410 54" />
-          <text class="k-label" x="322" y="30">traffic</text>
-        </g>
-
-        {/* ── api-server → kubelet wiring loom ──────────────────── */}
-        <g class="k-stroke">
-          <path id="w-n1" class="k-draw k-wire" d="M 282 128 L 436 128 L 436 118 L 560 118" />
-          <path id="w-n2" class="k-draw k-wire" d="M 282 128 L 420 128 L 420 280 L 560 280" />
-          <path id="w-n3" class="k-draw k-wire" d="M 282 128 L 404 128 L 404 442 L 560 442" />
-        </g>
-
-        {/* ── scheduler assignment arcs (dashed, transient) ─────── */}
-        <g class="k-stroke">
-          <path id="s-p1" class="k-draw k-arc k-dashed" d="M 262 232 Q 460 150 596 120" />
-          <path id="s-p2" class="k-draw k-arc k-dashed" d="M 266 252 Q 470 250 596 282" />
-          <path id="s-p3" class="k-draw k-arc k-dashed" d="M 262 272 Q 460 380 596 444" />
-        </g>
-
-        {/* ── worker nodes ──────────────────────────────────────── */}
-        {NODES.map((n) => (
-          <g class="k-stroke">
-            <rect class="k-draw k-node" x="560" y={n.y} width="400" height="140" rx="14" />
-            <text class="k-label" x="580" y={n.y + 30}>node-{n.id}</text>
-            <rect class="k-draw k-node" x="856" y={n.y + 14} width="86" height="28" rx="8" />
-            <text class="k-label k-small" x="868" y={n.y + 32}>kubelet</text>
-          </g>
-        ))}
-        {/* workers dimension bracket */}
-        <g class="k-stroke">
-          <line class="k-draw k-node k-faint" x1="974" y1="48" x2="974" y2="512" />
-          <line class="k-draw k-node k-faint" x1="968" y1="48" x2="980" y2="48" />
-          <line class="k-draw k-node k-faint" x1="968" y1="512" x2="980" y2="512" />
-          <text class="k-label k-small" x="928" y="36">workers ×3</text>
-        </g>
-
-        {/* ── pods ──────────────────────────────────────────────── */}
-        {PODS.map(([id, node, slot]) => {
-          const x = podX(slot);
-          const y = podY(node);
-          return (
-            <g id={id} class="k-stroke k-pod">
-              <rect class="k-draw pod-frame" x={x} y={y} width="104" height="64" rx="10" />
-              <circle class="k-draw pod-ring" cx={x + 30} cy={y + 32} r="11" />
-              <circle class="pod-dot" cx={x + 30} cy={y + 32} r="4.5" />
-              <text class="k-label k-small" x={x + 52} y={y + 37}>pod</text>
-            </g>
-          );
-        })}
-        {/* the X drawn over the dying pod (p21) */}
-        <g id="x21" class="k-stroke">
-          <line class="k-draw k-x" x1={podX(0) + 14} y1={podY(1) + 10} x2={podX(0) + 90} y2={podY(1) + 54} />
-          <line class="k-draw k-x" x1={podX(0) + 90} y1={podY(1) + 10} x2={podX(0) + 14} y2={podY(1) + 54} />
-        </g>
-
-        {/* ── kubectl manifest chip ─────────────────────────────── */}
-        <g id="manifest" class="k-stroke">
-          <rect class="k-manifest" x="70" y="6" width="46" height="56" rx="6" />
-          <line class="k-manifest" x1="80" y1="22" x2="106" y2="22" />
-          <line class="k-manifest" x1="80" y1="34" x2="106" y2="34" />
-          <line class="k-manifest" x1="80" y1="46" x2="98" y2="46" />
-          <text class="k-label k-small" x="60" y="78">deploy.yaml</text>
-        </g>
-
-        {/* replicas annotation */}
-        <text class="k-label" x="340" y="536">replicas: <tspan id="k8s-replicas">3</tspan></text>
-
-        {/* traffic dots */}
-        <circle class="k-dot" id="dot-a" r="5" />
-        <circle class="k-dot" id="dot-b" r="5" />
-        <circle class="k-dot" id="dot-c" r="5" />
-      </svg>
+          {/* traffic packets */}
+          <div class="k8s-pkt" id="kdot-a"></div>
+          <div class="k8s-pkt" id="kdot-b"></div>
+          <div class="k8s-pkt" id="kdot-c"></div>
         </div>
       </div>
+    </div>
+  </div>
 
-      {/* HUD: caption ticker + scrub strip */}
-      <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.25em] text-muted">
-          <span>phase:</span>
-          <span class="k8s-cap-window">
-            <span class="k8s-cap-list" id="k8s-captions">
-              {CAPTIONS.map((c) => (
-                <span class="k8s-cap text-cyan">{c}</span>
-              ))}
-            </span>
-          </span>
-        </div>
-        <div
-          id="k8s-scrub"
-          role="slider"
-          aria-label="Scrub the Kubernetes animation timeline"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-          tabindex="0"
-          data-cursor-label="scrub"
-        >
-          <div id="k8s-playhead"></div>
-        </div>
-      </div>
+  {/* HUD: caption ticker + replicas + scrub strip */}
+  <div class="container-page relative z-10 mt-2 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.25em] text-muted">
+      <span>phase:</span>
+      <span class="k8s-cap-window">
+        <span class="k8s-cap-list" id="k8s-captions">
+          {CAPTIONS.map((c) => (
+            <span class="k8s-cap text-cyan">{c}</span>
+          ))}
+        </span>
+      </span>
+      <span class="hidden sm:inline text-muted/70">· replicas: <span id="k8s-replicas" class="text-text">3</span></span>
+    </div>
+    <div
+      id="k8s-scrub"
+      role="slider"
+      aria-label="Scrub the Kubernetes animation timeline"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+      tabindex="0"
+      data-cursor-label="scrub"
+    >
+      <div id="k8s-playhead"></div>
     </div>
   </div>
 </section>
 
 <style>
-  #k8s-svg {
-    max-height: 72vh;
-  }
-
-  /* Same 3D language as the silicon board: steep base pose, living
-     wobble, drag to orbit. The script owns the pose; this static
-     transform is the reduced-motion/no-JS fallback. */
-  .k8s-stage {
+  /* Free 3D stage, silicon-style: absolute-centered, scale3d sized,
+     spill allowed (html overflow-x clip guards the page edge). */
+  .k8s-viewport {
     position: relative;
+    height: clamp(26rem, 62vh, 40rem);
     perspective: 1400px;
     perspective-origin: 50% 30%;
     cursor: grab;
@@ -238,80 +206,228 @@ const CAPTIONS = [
     user-select: none;
     -webkit-user-select: none;
   }
-  .k8s-stage.dragging {
+  .k8s-viewport.dragging {
     cursor: grabbing;
   }
-  .k8s-stage > * {
+  .k8s-viewport > * {
     pointer-events: none;
   }
-  .k8s-tilt {
-    transform-style: preserve-3d;
-    transform: rotateX(48deg) rotateZ(-14deg);
-    will-change: transform;
-  }
+
   .k8s-shadow {
     position: absolute;
     left: 50%;
-    top: 66%;
-    width: 52rem;
-    height: 10rem;
+    top: 62%;
+    width: 46rem;
+    height: 11rem;
     transform: translate(-50%, -50%);
-    background: radial-gradient(closest-side, rgb(0 0 0 / 0.5), transparent 70%);
-    filter: blur(26px);
+    background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent 70%);
+    filter: blur(28px);
   }
 
-  .k-stroke {
-    stroke: rgb(245 245 240 / 0.55);
-    stroke-width: 1.3;
+  .k8s-scale,
+  .k8s-tilt,
+  .k8s-board,
+  .k8s-cub {
+    transform-style: preserve-3d;
   }
-  .k-faint {
-    stroke: rgb(245 245 240 / 0.28);
+
+  .k8s-scale {
+    --s: 0.38;
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    width: 920px;
+    height: 600px;
+    transform: translate(-50%, -50%) scale3d(var(--s), var(--s), var(--s));
   }
-  .k-dashed {
-    stroke-dasharray: 5 7;
+  @media (min-width: 640px) {
+    .k8s-scale {
+      --s: 0.58;
+    }
   }
-  .k-wire {
-    stroke: rgb(58 224 255 / 0.4);
+  @media (min-width: 1024px) {
+    .k8s-scale {
+      --s: 0.76;
+      top: 50%;
+    }
   }
-  .k-arc {
-    stroke: rgb(245 245 240 / 0.45);
+  @media (min-width: 1400px) {
+    .k8s-scale {
+      --s: 0.86;
+    }
   }
-  .k-svc {
-    stroke: rgb(58 224 255 / 0.6);
+
+  .k8s-tilt {
+    position: absolute;
+    inset: 0;
+    /* Static pose - the script takes over for wobble + orbit. */
+    transform: rotateX(56deg) rotateZ(-16deg);
+    will-change: transform;
   }
-  .k-x {
-    stroke: var(--color-fuchsia);
-    stroke-width: 1.8;
+
+  .k8s-board {
+    position: relative;
+    width: 920px;
+    height: 600px;
   }
-  .k-manifest {
-    stroke: var(--color-lime);
-    stroke-width: 1.2;
+
+  .k8s-pcb {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--color-line) 80%, transparent);
+    background:
+      radial-gradient(60rem 30rem at 70% 15%, rgb(58 224 255 / 0.05), transparent 55%),
+      radial-gradient(50rem 26rem at 20% 85%, rgb(184 255 58 / 0.04), transparent 55%),
+      repeating-linear-gradient(0deg, transparent 0 39px, rgb(42 42 54 / 0.5) 39px 40px),
+      repeating-linear-gradient(90deg, transparent 0 39px, rgb(42 42 54 / 0.5) 39px 40px),
+      linear-gradient(145deg, #0e1218, #0a0d12 60%, #0c0f15);
+    box-shadow: inset 0 0 60px rgb(0 0 0 / 0.55);
   }
-  #manifest {
-    opacity: 0;
+  .k8s-pcb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    background: #05070a;
+    transform: translateZ(-14px);
   }
-  /* Slightly larger than flat-reading size - the steep tilt
-     foreshortens the glyphs. */
-  .k-label {
+
+  .k8s-trace {
+    position: absolute;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-cyan) 45%, transparent);
+    opacity: 0.3;
+    transform: translateZ(1px);
+  }
+
+  /* ── cuboids - same face system + lighting as the silicon board ── */
+  .k8s-cub {
+    position: absolute;
+  }
+  .face {
+    position: absolute;
+    backface-visibility: hidden;
+  }
+  .f-top {
+    inset: 0;
+    transform: translateZ(var(--h));
+    background: linear-gradient(135deg, #232937, #161b26 65%);
+    border: 1px solid rgb(255 255 255 / 0.07);
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+  }
+  .f-s {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--h);
+    transform-origin: bottom;
+    transform: rotateX(-90deg);
+    background: linear-gradient(180deg, #1b2130, #10141d);
+  }
+  .f-n {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--h);
+    transform-origin: top;
+    transform: rotateX(90deg);
+    background: #0d1119;
+  }
+  .f-e {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: var(--h);
+    transform-origin: right;
+    transform: rotateY(90deg);
+    background: linear-gradient(90deg, #171c28, #10141d);
+  }
+  .f-w {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--h);
+    transform-origin: left;
+    transform: rotateY(-90deg);
+    background: #0c0f16;
+  }
+
+  .k8s-face-label {
     font-family: var(--font-mono);
-    font-size: 14.5px;
-    letter-spacing: 0.08em;
-    fill: var(--color-muted);
-    stroke: none;
+    font-size: 13px;
+    letter-spacing: 0.28em;
+    color: color-mix(in srgb, var(--color-muted) 85%, transparent);
+    pointer-events: none;
   }
-  .k-small {
-    font-size: 11.5px;
+  .k-kubelet .k8s-face-label {
+    font-size: 9px;
+    letter-spacing: 0.18em;
   }
-  .pod-dot {
-    fill: var(--color-lime);
-    stroke: none;
+  .k8s-pod .k8s-face-label {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+  }
+
+  /* platforms + node plates: flatter, darker tops */
+  .k-plat .f-top {
+    background: linear-gradient(145deg, #141924, #0e1219 70%);
+    border-radius: 14px;
+  }
+  .k-node .f-top {
+    background: linear-gradient(150deg, #171d29, #101521 70%);
+    border-radius: 12px;
+  }
+  .k-node .k8s-face-label {
+    position: absolute;
+    left: 18px;
+    top: 12px;
+  }
+  .k-kubelet .f-top {
+    background: linear-gradient(150deg, #262c3a, #141924);
+  }
+
+  /* pods glow lime when healthy */
+  .k8s-pod .f-top {
+    border-color: rgb(184 255 58 / 0.35);
+  }
+  .pod-glow {
+    position: absolute;
+    inset: -3px;
+    border-radius: 8px;
+    background: var(--color-lime);
+    filter: blur(10px);
+    opacity: 0;
+    transform: translateZ(2px);
+  }
+
+  .k8s-manifest {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 26px;
+    height: 34px;
+    border-radius: 5px;
+    border: 1.5px solid var(--color-lime);
+    background: rgb(184 255 58 / 0.12);
+    box-shadow: 0 0 14px rgb(184 255 58 / 0.6);
     opacity: 0;
   }
-  .k-dot {
-    fill: var(--color-cyan);
-    stroke: none;
+
+  .k8s-pkt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--color-cyan);
+    box-shadow:
+      0 0 10px var(--color-cyan),
+      0 0 26px color-mix(in srgb, var(--color-cyan) 55%, transparent);
     opacity: 0;
-    filter: drop-shadow(0 0 6px var(--color-cyan));
   }
 
   /* caption ticker */
@@ -331,7 +447,7 @@ const CAPTIONS = [
     white-space: nowrap;
   }
 
-  /* scrub strip - anime.js style tick bar */
+  /* scrub strip - tick bar with a playhead */
   #k8s-scrub {
     position: relative;
     width: min(20rem, 60vw);
@@ -344,7 +460,6 @@ const CAPTIONS = [
         transparent 1.5px 7px
       ),
       #101018;
-    background-blend-mode: normal;
     border: 1px solid var(--color-line);
     cursor: ew-resize;
     touch-action: none;
@@ -366,41 +481,42 @@ const CAPTIONS = [
 </style>
 
 <script>
-  import { animate, createTimeline, stagger, svg, utils } from 'animejs';
+  import { animate, createTimeline, stagger, utils } from 'animejs';
 
   const section = document.getElementById('k8s');
+  const stage = document.getElementById('k8s-stage');
+  const tilt = document.getElementById('k8s-tilt');
   const scrub = document.getElementById('k8s-scrub');
   const playhead = document.getElementById('k8s-playhead');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (section && scrub && playhead && !reduced) {
+  if (section && stage && tilt && scrub && playhead && !reduced) {
     const LIME = '#b8ff3a';
     const FUCHSIA = '#ff3a8c';
-    // Legacy comma syntax - anime's color parser rejects the modern
-    // space/slash rgb() form.
-    const BASE = 'rgba(245, 245, 240, 0.55)';
+    const CYAN = '#3ae0ff';
+    const NODE_YS = [90, 260, 430];
+    const podCenter = (slot: number, node: number) => ({
+      x: 505 + slot * 104 + 42,
+      y: NODE_YS[node] + 62 + 29,
+    });
 
-    const draw = (sel: string) => svg.createDrawable(sel);
+    const BUILD = ['#cp-plat', '#node-1', '#node-2', '#node-3', '#api', '#etcd', '#sched', '#ctrl', '#kubelet-1', '#kubelet-2', '#kubelet-3', '#ingress'];
+    const INIT_PODS = ['#p11', '#p21', '#p31'];
+    const LATE_PODS = ['#p32', '#p12', '#p22'];
 
-    // Blank slate - everything erased, labels and pods hidden.
-    utils.set(draw('.k-draw'), { draw: '0 0' });
-    utils.set('.k-label', { opacity: 0 });
-    utils.set('.k-pod', { opacity: 0 });
-    utils.set('#x21', { opacity: 1 });
-    utils.set('#manifest', { opacity: 0 });
+    // Blank slate - everything hovering invisible above its spot.
+    utils.set(BUILD.join(','), { z: 140, opacity: 0 });
+    utils.set([...INIT_PODS, ...LATE_PODS].join(','), { z: 60, opacity: 0, scale: 0.6 });
+    utils.set('.k8s-trace', { opacity: 0 });
+    utils.set('#k8s-manifest', { x: 330, y: -70, z: 60, opacity: 0 });
+    utils.set('.k8s-pkt', { z: 20 });
 
     const capEl = '#k8s-captions';
-    const podC = (slot: number, node: number) => ({
-      x: 596 + slot * 132 + 30,
-      y: [48, 210, 372][node] + 54 + 32,
-    });
 
     const tl = createTimeline({
       loop: true,
       defaults: { ease: 'inOutQuad' },
       onUpdate: (self) => {
-        // A looped timeline's total duration is Infinity - use the
-        // single-iteration clock for progress.
         const p = self.iterationDuration ? self.iterationCurrentTime / self.iterationDuration : 0;
         playhead.style.left = `${Math.min(99, p * 100)}%`;
         scrub.setAttribute('aria-valuenow', String(Math.round(p * 100)));
@@ -411,86 +527,105 @@ const CAPTIONS = [
       tl.add(capEl, { y: -16 * idx, duration: 260, ease: 'outExpo' }, atMs);
     };
 
-    /** Spawn one pod: outline draws in, container dot lights lime. */
+    /** Flash a component's top face in an accent color. */
+    const glow = (id: string, hex: string, atMs: number, dur = 700) => {
+      tl.add(`${id} .f-top`, {
+        borderColor: [
+          { to: hex, duration: 180, ease: 'outQuad' },
+          { to: 'rgba(255, 255, 255, 0.07)', duration: dur },
+        ],
+        boxShadow: [
+          { to: `0 0 22px ${hex}`, duration: 180, ease: 'outQuad' },
+          { to: '0 0 0px rgba(0,0,0,0)', duration: dur },
+        ],
+      }, atMs);
+    };
+
+    /** A pod rises out of its node plate and lights up. */
     const spawnPod = (id: string, atMs: number) => {
-      tl.add(`#${id}`, { opacity: { from: 0, to: 1, duration: 100 } }, atMs);
-      tl.add(draw(`#${id} .k-draw`), { draw: '0 1', duration: 520, delay: stagger(90) }, atMs);
-      tl.add(`#${id} .k-label`, { opacity: { from: 0, to: 0.9, duration: 260 } }, atMs + 420);
-      tl.add(`#${id} .pod-dot`, { opacity: { from: 0, to: 1, duration: 200 } }, atMs + 560);
+      tl.add(id, {
+        z: { from: 60, to: 0, duration: 550 },
+        opacity: { from: 0, to: 1, duration: 300 },
+        scale: { from: 0.6, to: 1, duration: 550 },
+        ease: 'outBack(1.4)',
+      }, atMs);
+      tl.add(`${id} .pod-glow`, {
+        opacity: [{ from: 0, to: 0.75, duration: 220 }, { to: 0.18, duration: 500 }],
+      }, atMs + 380);
     };
 
-    /** One traffic dot: svc → across → down to a pod ring. */
+    /** One traffic packet: ingress → down the aisle → into a pod. */
     const shoot = (dot: string, slot: number, node: number, atMs: number) => {
-      const c = podC(slot, node);
-      tl.add(dot, { opacity: { from: 0, to: 1, duration: 80 }, x: { from: 512, to: 512, duration: 80 }, y: { from: 46, to: 46, duration: 80 } }, atMs);
-      tl.add(dot, { x: { to: 540 }, duration: 140, ease: 'inQuad' }, atMs + 80);
-      tl.add(dot, { x: { to: c.x }, y: { to: c.y }, duration: 420, ease: 'inOutQuad' }, atMs + 220);
-      tl.add(dot, { opacity: 0, duration: 90 }, atMs + 640);
+      const c = podCenter(slot, node);
+      tl.add(dot, {
+        x: { from: 448, to: 448, duration: 90 },
+        y: { from: 82, to: 82, duration: 90 },
+        opacity: { from: 0, to: 1, duration: 90 },
+      }, atMs);
+      tl.add(dot, { y: { to: c.y }, duration: 380, ease: 'inOutQuad' }, atMs + 100);
+      tl.add(dot, { x: { to: c.x - 7 }, duration: 300, ease: 'outQuad' }, atMs + 480);
+      tl.add(dot, { opacity: 0, duration: 90 }, atMs + 790);
     };
 
-    // ── phase 1 · the cluster draws itself ────────────────────────
+    // ── phase 1 · the cluster builds itself ───────────────────────
     cap(0, 0);
-    tl.add(draw('.k-cp'), { draw: '0 1', duration: 1500, delay: stagger(55) }, 0);
-    tl.add(draw('.k-node'), { draw: '0 1', duration: 1200, delay: stagger(45) }, 500);
-    tl.add(draw('.k-svc'), { draw: '0 1', duration: 700, delay: stagger(90) }, 1300);
-    tl.add(draw('.k-wire'), { draw: '0 1', duration: 800, delay: stagger(140) }, 1500);
-    tl.add('svg#k8s-svg .k-label', { opacity: { from: 0, to: 0.9, duration: 500 }, delay: stagger(28) }, 1700);
+    tl.add(BUILD.join(','), {
+      z: { from: 140, to: 0, duration: 750 },
+      opacity: { from: 0, to: 1, duration: 400 },
+      ease: 'outCubic',
+      delay: stagger(130),
+    }, 100);
+    tl.add('.k8s-trace', { opacity: { from: 0, to: 0.3, duration: 500 }, delay: stagger(90) }, 1700);
 
     // ── phase 2 · kubectl apply ───────────────────────────────────
     cap(1, 2800);
-    tl.add('#manifest', {
-      opacity: [{ from: 0, to: 1, duration: 200 }, { to: 1, duration: 600 }, { to: 0, duration: 250 }],
-      x: { from: 0, to: 76, duration: 850 },
-      y: { from: 0, to: 66, duration: 850 },
+    tl.add('#k8s-manifest', {
+      opacity: [{ from: 0, to: 1, duration: 180 }, { to: 1, duration: 500 }, { to: 0, duration: 200 }],
+      x: { from: 330, to: 170, duration: 880 },
+      y: { from: -70, to: 165, duration: 880 },
+      z: { from: 60, to: 42, duration: 880 },
     }, 2800);
-    tl.add('svg#k8s-svg rect.k-cp', {
-      stroke: [{ to: LIME, duration: 200 }, { to: BASE, duration: 500 }],
-    }, 3650);
-    // etcd persists the object
-    tl.add('svg#k8s-svg ellipse.k-cp', {
-      stroke: [{ to: LIME, duration: 220 }, { to: BASE, duration: 600 }],
-      delay: stagger(90),
-    }, 3900);
+    glow('#api', LIME, 3700);
+    glow('#etcd', LIME, 3950, 900);
 
     // ── phase 3 · scheduler binds pods ────────────────────────────
     cap(2, 4600);
-    tl.add('#sched-ticks', {
-      rotate: { from: 0, to: 360, duration: 900 },
-      svgOrigin: '232 252',
-      ease: 'inOutSine',
-    }, 4600);
-    tl.add(draw('.k-arc'), { draw: '0 1', duration: 650, delay: stagger(200) }, 4700);
-    spawnPod('p11', 5100);
-    spawnPod('p21', 5350);
-    spawnPod('p31', 5600);
-    tl.add(draw('.k-arc'), { draw: '1 1', duration: 500, delay: stagger(120) }, 6400);
+    glow('#sched', CYAN, 4600, 500);
+    tl.add('.k8s-trace', {
+      opacity: [{ to: 0.85, duration: 220, ease: 'outQuad' }, { to: 0.3, duration: 600 }],
+      delay: stagger(70),
+    }, 4800);
+    spawnPod('#p11', 5100);
+    spawnPod('#p21', 5350);
+    spawnPod('#p31', 5600);
 
     // ── phase 4 · service balances traffic ────────────────────────
     cap(3, 7000);
-    shoot('#dot-a', 0, 0, 7000);
-    shoot('#dot-b', 0, 1, 7350);
-    shoot('#dot-c', 0, 2, 7700);
-    shoot('#dot-a', 0, 0, 8050);
+    glow('#ingress', CYAN, 7000, 500);
+    shoot('#kdot-a', 0, 0, 7050);
+    shoot('#kdot-b', 0, 1, 7400);
+    shoot('#kdot-c', 0, 2, 7750);
+    shoot('#kdot-a', 0, 0, 8100);
 
     // ── phase 5 · a pod dies, the control loop heals ──────────────
     cap(4, 9000);
-    tl.add('#p21 .pod-frame', {
-      stroke: [
-        { to: FUCHSIA, duration: 120 },
-        { to: BASE, duration: 120 },
-        { to: FUCHSIA, duration: 120 },
+    tl.add('#p21 .f-top', {
+      borderColor: [
+        { to: FUCHSIA, duration: 130 },
+        // legacy comma syntax - anime's color parser rejects rgb(r g b / a)
+        { to: 'rgba(184, 255, 58, 0.35)', duration: 130 },
+        { to: FUCHSIA, duration: 130 },
       ],
     }, 9000);
-    tl.add('#p21 .pod-dot', { opacity: 0, duration: 200 }, 9200);
-    tl.add(draw('#x21 .k-x'), { draw: '0 1', duration: 380, delay: stagger(140) }, 9400);
-    // the controller notices - its loop spins
-    tl.add('#ctrl-loop', {
-      rotate: { from: 0, to: 360, duration: 800 },
-      svgOrigin: '150 416',
-      ease: 'inOutSine',
-    }, 9700);
-    tl.add('#p21', { opacity: 0.18, duration: 500 }, 10300);
-    spawnPod('p32', 10600);
+    tl.add('#p21 .pod-glow', { backgroundColor: FUCHSIA, opacity: 0.6, duration: 250 }, 9200);
+    tl.add('#p21', {
+      z: { to: -26, duration: 600, ease: 'inQuad' },
+      opacity: { to: 0, duration: 600 },
+      scale: { to: 0.55, duration: 600 },
+    }, 9500);
+    glow('#ctrl', FUCHSIA, 9700, 600);
+    glow('#api', CYAN, 10100, 500);
+    spawnPod('#p32', 10600);
 
     // ── phase 6 · scale 3 → 5 ─────────────────────────────────────
     cap(5, 11800);
@@ -498,28 +633,101 @@ const CAPTIONS = [
       const r = document.getElementById('k8s-replicas');
       if (r) r.textContent = '5';
     }, 11900);
-    spawnPod('p12', 12000);
-    spawnPod('p22', 12300);
-    shoot('#dot-b', 1, 0, 13000);
-    shoot('#dot-c', 1, 2, 13350);
+    glow('#api', LIME, 11900, 500);
+    spawnPod('#p12', 12100);
+    spawnPod('#p22', 12400);
+    shoot('#kdot-b', 1, 0, 13100);
+    shoot('#kdot-c', 1, 2, 13450);
 
     // ── phase 7 · steady state ────────────────────────────────────
-    cap(6, 14200);
-    tl.add('svg#k8s-svg .pod-dot', {
-      opacity: [{ to: 0.4, duration: 300 }, { to: 1, duration: 300 }],
-      delay: stagger(90),
-    }, 14300);
+    cap(6, 14300);
+    tl.add('.k8s-pod .pod-glow', {
+      opacity: [{ to: 0.55, duration: 280 }, { to: 0.18, duration: 380 }],
+      delay: stagger(100),
+    }, 14400);
 
-    // ── phase 8 · erase and loop ──────────────────────────────────
-    cap(7, 15400);
+    // ── phase 8 · tear down and loop ──────────────────────────────
+    cap(7, 15500);
     tl.call(() => {
       const r = document.getElementById('k8s-replicas');
       if (r) r.textContent = '3';
-    }, 15500);
-    tl.add('#p21', { opacity: 1, duration: 200 }, 15400);
-    tl.add('svg#k8s-svg .k-label, .k-pod, #x21', { opacity: 0, duration: 450 }, 15500);
-    tl.add(draw('.k-draw'), { draw: '1 1', duration: 750, delay: stagger(6) }, 15600);
-    tl.add(capEl, { y: 0, duration: 260, ease: 'outExpo' }, 16500);
+    }, 15600);
+    tl.add('#p21 .pod-glow', { backgroundColor: LIME, opacity: 0, duration: 200 }, 15550);
+    tl.add('.k8s-trace', { opacity: 0, duration: 350 }, 15600);
+    tl.add('.k8s-pod', {
+      z: { to: 60, duration: 450, ease: 'inCubic' },
+      opacity: { to: 0, duration: 350 },
+      delay: stagger(40),
+    }, 15650);
+    tl.add(BUILD.join(','), {
+      z: { to: 140, duration: 550, ease: 'inCubic' },
+      opacity: { to: 0, duration: 400 },
+      delay: stagger(28, { from: 'last' }),
+    }, 15850);
+    tl.add(capEl, { y: 0, duration: 260, ease: 'outExpo' }, 16700);
+
+    // ── silicon-style orbit: wobble + drag, auto-return ───────────
+    const BASE_RX = 56;
+    const BASE_RZ = -16;
+    const POSE = { rx: BASE_RX, rz: BASE_RZ };
+    utils.set(tilt, { rotateX: BASE_RX, rotateZ: BASE_RZ });
+
+    const mkWobble = () =>
+      animate(tilt, {
+        rotateX: [
+          { to: BASE_RX + 2, duration: 2800 },
+          { to: BASE_RX - 2.5, duration: 4200 },
+          { to: BASE_RX, duration: 2400 },
+        ],
+        rotateZ: [
+          { to: BASE_RZ + 3, duration: 3400 },
+          { to: BASE_RZ - 3, duration: 3600 },
+          { to: BASE_RZ, duration: 2400 },
+        ],
+        ease: 'inOutSine',
+        loop: true,
+      });
+    let wobble = mkWobble();
+
+    let dragging = false;
+    let returnAnim: ReturnType<typeof animate> | null = null;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    stage.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      stage.classList.add('dragging');
+      stage.setPointerCapture(e.pointerId);
+      wobble.pause();
+      returnAnim?.pause();
+      clearTimeout(idleTimer);
+      POSE.rx = Number(utils.get(tilt, 'rotateX', false));
+      POSE.rz = Number(utils.get(tilt, 'rotateZ', false));
+    });
+    stage.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      POSE.rz = utils.clamp(POSE.rz + e.movementX * 0.2, -78, 44);
+      POSE.rx = utils.clamp(POSE.rx - e.movementY * 0.18, 34, 72);
+      utils.set(tilt, { rotateX: POSE.rx, rotateZ: POSE.rz });
+    });
+    const endOrbit = () => {
+      if (!dragging) return;
+      dragging = false;
+      stage.classList.remove('dragging');
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        returnAnim = animate(tilt, {
+          rotateX: BASE_RX,
+          rotateZ: BASE_RZ,
+          duration: 1400,
+          ease: 'inOutQuad',
+          onComplete: () => {
+            wobble = mkWobble();
+          },
+        });
+      }, 5000);
+    };
+    stage.addEventListener('pointerup', endOrbit);
+    stage.addEventListener('pointercancel', endOrbit);
 
     // ── scrub strip: drag or click to seek ────────────────────────
     let scrubbing = false;
@@ -552,73 +760,6 @@ const CAPTIONS = [
         tl.currentTime = Math.max(0, tl.iterationCurrentTime - step);
       }
     });
-
-    // ── Same 3D as the silicon board: wobble + drag-to-orbit ──────
-    const tilt = document.getElementById('k8s-tilt');
-    const stage = document.getElementById('k8s-stage');
-    if (tilt && stage) {
-      const BASE_RX = 48;
-      const BASE_RZ = -14;
-      const POSE = { rx: BASE_RX, rz: BASE_RZ };
-      utils.set(tilt, { rotateX: BASE_RX, rotateZ: BASE_RZ });
-
-      const mkWobble = () =>
-        animate(tilt, {
-          rotateX: [
-            { to: BASE_RX + 2.5, duration: 2800 },
-            { to: BASE_RX - 2.5, duration: 4200 },
-            { to: BASE_RX, duration: 2400 },
-          ],
-          rotateZ: [
-            { to: BASE_RZ + 3, duration: 3400 },
-            { to: BASE_RZ - 3, duration: 3600 },
-            { to: BASE_RZ, duration: 2400 },
-          ],
-          ease: 'inOutSine',
-          loop: true,
-        });
-      let wobble = mkWobble();
-
-      let dragging = false;
-      let returnAnim: ReturnType<typeof animate> | null = null;
-      let idleTimer: ReturnType<typeof setTimeout> | undefined;
-
-      stage.addEventListener('pointerdown', (e) => {
-        dragging = true;
-        stage.classList.add('dragging');
-        stage.setPointerCapture(e.pointerId);
-        wobble.pause();
-        returnAnim?.pause();
-        clearTimeout(idleTimer);
-        POSE.rx = Number(utils.get(tilt, 'rotateX', false));
-        POSE.rz = Number(utils.get(tilt, 'rotateZ', false));
-      });
-      stage.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        POSE.rz = utils.clamp(POSE.rz + e.movementX * 0.2, -70, 46);
-        POSE.rx = utils.clamp(POSE.rx - e.movementY * 0.18, 24, 68);
-        utils.set(tilt, { rotateX: POSE.rx, rotateZ: POSE.rz });
-      });
-      const endOrbit = () => {
-        if (!dragging) return;
-        dragging = false;
-        stage.classList.remove('dragging');
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-          returnAnim = animate(tilt, {
-            rotateX: BASE_RX,
-            rotateZ: BASE_RZ,
-            duration: 1400,
-            ease: 'inOutQuad',
-            onComplete: () => {
-              wobble = mkWobble();
-            },
-          });
-        }, 5000);
-      };
-      stage.addEventListener('pointerup', endOrbit);
-      stage.addEventListener('pointercancel', endOrbit);
-    }
 
     // ── run only while on screen ──────────────────────────────────
     const io = new IntersectionObserver(
