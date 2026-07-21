@@ -5,21 +5,24 @@ import { z } from 'zod';
  * Kept tight: name 1–80, email valid, message 10–2000, token required.
  */
 export const contactPayloadSchema = z.object({
+  // .trim() first: zod runs checks in chain order, so validations see the
+  // trimmed value (a padded email must not fail .email(), a whitespace-only
+  // name must fail .min(1)).
   name: z
     .string()
+    .trim()
     .min(1, 'Name is required')
-    .max(80, 'Name must be 80 characters or fewer')
-    .trim(),
+    .max(80, 'Name must be 80 characters or fewer'),
   email: z
     .string()
+    .trim()
     .email('Please use a valid email address')
-    .max(254, 'Email is too long')
-    .trim(),
+    .max(254, 'Email is too long'),
   message: z
     .string()
+    .trim()
     .min(10, 'Message must be at least 10 characters')
-    .max(2000, 'Message must be 2000 characters or fewer')
-    .trim(),
+    .max(2000, 'Message must be 2000 characters or fewer'),
   turnstileToken: z.string().min(1, 'Turnstile token is required'),
 });
 
