@@ -22,7 +22,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^12.2.0",
     "@astrojs/react": "^4.2.0",
     "@astrojs/sitemap": "^3.2.1",
     "@fontsource-variable/bricolage-grotesque": "^5.2.10",
