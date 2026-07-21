@@ -42,14 +42,18 @@ Full design + decisions: `docs/superpowers/specs/2026-05-14-v9dev-portfolio-desi
 
 ## What's pending
 
-1. **Worker tests not yet executed** — code + `*.test.ts` exist under
-   `functions/_lib/`; run `pnpm test` and confirm green.
-2. **SEO/perf polish** — real OG image at `/public/og/default.png`,
+1. **SEO/perf polish** — real OG image at `/public/og/default.png`,
    favicon set in `/public/icons/`, Lighthouse pass, reduced-motion +
    a11y sweep.
-3. **CI + deploy** — GitHub Actions (typecheck/lint/test/build on PR),
-   Cloudflare Pages project, KV namespaces, env vars, custom domain.
-   Steps documented in `README.md`.
+2. **CI + deploy** — GitHub Actions (typecheck/lint/test/build on PR),
+   Cloudflare Pages project, env vars, custom domain. KV namespaces
+   (`v9dev-CONTACT_MESSAGES`, `v9dev-RATE_LIMIT`) already exist and are
+   wired in `wrangler.toml`. Steps documented in `README.md`.
+3. **Email accounts** — create Resend account (verify v9dev.in, get
+   `RESEND_API_KEY`) and enable Cloudflare Email Routing so
+   `hello@v9dev.in` forwards to a real inbox. Decision: Resend sends,
+   Email Routing receives - no send_email Worker (binding is
+   Workers-only, can't email the form submitter).
 4. **Content swaps JP still owns** — real project screenshots
    (`/public/work/*.svg` are placeholders), final social handles +
    email if different from `hello@v9dev.in`, real years if any need
